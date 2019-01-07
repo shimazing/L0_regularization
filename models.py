@@ -23,11 +23,11 @@ class L0MLP(nn.Module):
             inp_dim = self.input_dim if i == 0 else self.layer_dims[i - 1]
             droprate_init, lamba = 0.2 if i == 0 else 0.5, lambas[i] if len(lambas) > 1 else lambas[0]
             layers += [L0Dense(inp_dim, dimh, droprate_init=droprate_init, weight_decay=self.weight_decay,
-                               lamba=lamba, local_rep=local_rep, temperature=temperature), nn.ReLU()]
+                               lamba=lamba, local_rep=local_rep, temperature=temperature)]
 
         layers.append(L0Dense(self.layer_dims[-1], num_classes, droprate_init=0.5, weight_decay=self.weight_decay,
                               lamba=lambas[-1], local_rep=local_rep, temperature=temperature))
-        self.output = nn.Sequential(*layers)
+        self.layers = nn.ModuleList(layers)
 
         self.layers = []
         for m in self.modules():
@@ -42,7 +42,11 @@ class L0MLP(nn.Module):
             self.steps_ema = 0.
 
     def forward(self, x):
-        return self.output(x)
+        input = x
+        input_random = None
+        for layer in self.layers:
+            input, input_random = layer(input, input_random)
+        return input + input_random
 
     def regularization(self):
         regularization = 0.
@@ -97,23 +101,24 @@ class L0LeNet5(nn.Module):
         self.fc_dims = fc_dims
         self.beta_ema = beta_ema
         self.weight_decay = weight_decay
-
+        self.input_size = input_size
         convs = [L0Conv2d(input_size[0], conv_dims[0], 5, droprate_init=0.5, temperature=temperature,
                           weight_decay=self.weight_decay, lamba=lambas[0], local_rep=local_rep),
-                 nn.ReLU(), nn.MaxPool2d(2),
+                 #nn.ReLU(), nn.MaxPool2d(2),
                  L0Conv2d(conv_dims[0], conv_dims[1], 5, droprate_init=0.5, temperature=temperature,
-                          weight_decay=self.weight_decay, lamba=lambas[1], local_rep=local_rep),
-                 nn.ReLU(), nn.MaxPool2d(2)]
-        self.convs = nn.Sequential(*convs)
+                          weight_decay=self.weight_decay, lamba=lambas[1],
+                          local_rep=local_rep)]#,
+                 #nn.ReLU(), nn.MaxPool2d(2)]
+        self.convs = nn.ModuleList(convs)
+
         if torch.cuda.is_available():
             self.convs = self.convs.cuda()
-
         flat_fts = get_flat_fts(input_size, self.convs)
         fcs = [L0Dense(flat_fts, self.fc_dims, droprate_init=0.5, weight_decay=self.weight_decay,
-                       lamba=lambas[2], local_rep=local_rep, temperature=temperature), nn.ReLU(),
+                       lamba=lambas[2], local_rep=local_rep, temperature=temperature),
                L0Dense(self.fc_dims, num_classes, droprate_init=0.5, weight_decay=self.weight_decay,
                        lamba=lambas[3], local_rep=local_rep, temperature=temperature)]
-        self.fcs = nn.Sequential(*fcs)
+        self.fcs = nn.ModuleList(fcs)
 
         self.layers = []
         for m in self.modules():
@@ -128,9 +133,25 @@ class L0LeNet5(nn.Module):
             self.steps_ema = 0.
 
     def forward(self, x):
-        o = self.convs(x)
-        o = o.view(o.size(0), -1)
-        return self.fcs(o)
+        input = x
+        input_random = None
+
+        output, mask = self.convs[0](input, input_random)
+        output = F.relu(output)
+        input_random = output = F.max_pool2d(output, 2)
+        input = mask * output
+
+        output, mask = self.convs[1](input, input_random)
+        output = F.relu(output)
+        input = F.max_pool2d(output, 2)
+
+        input_random = None
+        input = input.view(input.shape[0], -1)
+
+        for layer in self.fcs:
+            input, input_random = layer(input, input_random)
+        return input + input_random
+
 
     def regularization(self):
         regularization = 0.
@@ -164,6 +185,25 @@ class L0LeNet5(nn.Module):
     def get_params(self):
         params = deepcopy(list(p.data for p in self.parameters()))
         return params
+
+    def compute_params(self):
+        fake_data = torch.randn(1, *self.input_size)
+        if torch.cuda.is_available():
+            fake_data = fake_data.cuda()
+        n_params = []
+        in_channels = 1
+        in_features = None
+        for layer in self.layers:
+            nonzero_groups = layer.sample_z(fake_data.size(0), False).abs().sign().sum().item()
+            if isinstance(layer, L0Conv2d):
+                n_params.append(5 * 5 * in_channels * nonzero_groups)
+                in_channels = nonzero_groups
+            elif isinstance(layer, L0Dense):
+                if in_features is not None:
+                    n_params.append(in_features * nonzero_groups)
+                in_features = nonzero_groups
+        n_params.append(in_features * 10)
+        return n_params
 
 
 class BasicBlock(nn.Module):

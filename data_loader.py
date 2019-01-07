@@ -12,7 +12,7 @@ class pMNIST(MNIST):
                  transform=transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]),
                  target_transform=None,
                  train=True,
-                 download=True):
+                 download=True, flat=True):
 
         super(pMNIST, self).__init__(root, train=train, transform=transform,
                                      target_transform=target_transform, download=download)
@@ -30,7 +30,7 @@ class pMNIST(MNIST):
                 n_tasks = len(perms)
             assert n_tasks == len(perms)
             #assert np.all(perms[0] == np.arange(data_dim))
-
+        self.flat = flat
         self.perms = perms
         self.task_id = None
 
@@ -46,7 +46,10 @@ class pMNIST(MNIST):
             target = self.target_transform(target)
 
         # img pixel permutation
-        img = img.view(-1)
+        if self.flat:
+            img = img.view(-1)
+        else:
+            assert img.shape == torch.Size([1, 28, 28])
         #img = img.index_select(1, torch.LongTensor(self.perms[self.task_id]))
         return img, target
 

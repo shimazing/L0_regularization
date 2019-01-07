@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import os
 import shutil
-
+import torch.nn.functional as F
 prng = np.random.RandomState(1)
 torch.manual_seed(1)
 
@@ -75,9 +75,21 @@ def get_flat_fts(in_size, fts):
     dummy_input = torch.ones(1, *in_size)
     if torch.cuda.is_available():
         dummy_input = dummy_input.cuda()
-    f = fts(torch.autograd.Variable(dummy_input))
-    print('conv_out_size: {}'.format(f.size()))
-    return int(np.prod(f.size()[1:]))
+
+    input = dummy_input
+    input_random = None
+
+    output, mask = fts[0](input, input_random)
+    output = F.relu(output)
+    input_random = output = F.max_pool2d(output, 2)
+    input = mask * output
+
+    output, mask = fts[1](input, input_random)
+    output = F.relu(output)
+    f = F.max_pool2d(output, 2).detach().cpu().numpy()
+    #f = fts(torch.autograd.Variable(dummy_input))
+    print('conv_out_size: {}'.format(f.shape))
+    return int(np.prod(f.shape[1:]))
 
 
 def adjust_learning_rate(optimizer, epoch, lr=0.1, lr_decay_ratio=0.1, epoch_drop=(), writer=None):

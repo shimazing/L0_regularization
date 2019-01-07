@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from torch.nn.modules import Module
 from torch.nn.parameter import Parameter
 from torch.nn.modules.utils import _pair as pair
-from torch.autograd import Variable
 from torch.nn import init
 
 limit_a, limit_b, epsilon = -.1, 1.1, 1e-6
@@ -39,7 +38,7 @@ class L0Dense(Module):
         self.local_rep = local_rep
         if bias:
             self.bias = Parameter(torch.Tensor(out_features))
-            self.bias_random = Parameter(torch.Tensor(in_features),
+            self.bias_random = Parameter(torch.Tensor(out_features),
                     requires_grad=False)
             self.use_bias = True
         self.floatTensor = torch.FloatTensor if not torch.cuda.is_available() else torch.cuda.FloatTensor
@@ -97,7 +96,6 @@ class L0Dense(Module):
     def get_eps(self, size):
         """Uniform random numbers for the concrete distribution"""
         eps = self.floatTensor(size).uniform_(epsilon, 1-epsilon)
-        eps = Variable(eps)
         return eps
 
     def sample_z(self, batch_size, sample=True):
@@ -113,21 +111,30 @@ class L0Dense(Module):
     def sample_weights(self):
         z = self.quantile_concrete(self.get_eps(self.floatTensor(self.in_features)))
         mask = F.hardtanh(z, min_val=0, max_val=1)
-        return mask.view(self.in_features, 1) * self.weights
+        return mask.view(self.in_features, 1) * self.weights, mask.sign()
 
-    def forward(self, input):
+    def forward(self, input, input_random=None):
         if self.local_rep or not self.training:
             z = self.sample_z(input.size(0), sample=self.training)
-            xin = input.mul(z)
-            output = xin.mm(self.weights)
-        else:
-            weights = self.sample_weights()
-            output = input.mm(weights)
-        output = output + input.mm(self.weights_random)
+            xin = input.mul(z.sign())
+            if input_random is not None:
+                xin = xin + input_random
+                xin = F.relu(xin)
+            output = xin.mul(z).mm(self.weights)
+            output_random = xin.mm(self.weights_random)
+        else: # train mode
+            weights, mask = self.sample_weights()
+            xin = input.mul(mask)
+            if input_random is not None:
+                xin = xin + input_random
+                xin = F.relu(xin)
+            output = xin.mm(weights)
+            output_random = xin.mm(self.weights_random)
+
         if self.use_bias:
             output.add_(self.bias)
-
-        return output
+            output_random.add_(self.bias_random)
+        return output, output_random
 
     def __repr__(self):
         s = ('{name}({in_features} -> {out_features}, droprate_init={droprate_init}, '
@@ -253,7 +260,6 @@ class L0Conv2d(Module):
     def get_eps(self, size):
         """Uniform random numbers for the concrete distribution"""
         eps = self.floatTensor(size).uniform_(epsilon, 1-epsilon)
-        eps = Variable(eps)
         return eps
 
     def sample_z(self, batch_size, sample=True):
@@ -268,22 +274,26 @@ class L0Conv2d(Module):
 
     def sample_weights(self):
         z = self.quantile_concrete(self.get_eps(self.floatTensor(self.dim_z))).view(self.dim_z, 1, 1, 1)
-        return F.hardtanh(z, min_val=0, max_val=1) * self.weights
+        mask = F.hardtanh(z, min_val=0, max_val=1)# * self.weights
+        return mask * self.weights, mask.view(1, -1, 1, 1).sign()
 
-    def forward(self, input_):
+    def forward(self, input, input_random=None):
         if self.input_shape is None:
-            self.input_shape = input_.size()
+            self.input_shape = input[0].size()
         b = None if not self.use_bias else self.bias
-        b_ = None if not self.use_bias else self.bias_random
-        output_ = F.conv2d(input_, self.weights_random, b_, self.stride, self.padding, self.dilation, self.groups)
+        b_random = None if not self.use_bias else self.bias_random
+
+        random_output = F.conv2d(input, self.weights_random, b_random,
+                self.stride, self.padding, self.dilation, self.groups)
+
         if self.local_rep or not self.training:
-            output = F.conv2d(input_, self.weights, b, self.stride, self.padding, self.dilation, self.groups)
+            output = F.conv2d(input, self.weights, b, self.stride, self.padding, self.dilation, self.groups)
             z = self.sample_z(output.size(0), sample=self.training)
-            return output.mul(z) + output_
+            return output.mul(z) + random_output, z.sign()
         else:
-            weights = self.sample_weights()
-            output = F.conv2d(input_, weights, None, self.stride, self.padding, self.dilation, self.groups)
-            return output + output_
+            weights, mask = self.sample_weights()
+            output = F.conv2d(input, weights, None, self.stride, self.padding, self.dilation, self.groups)
+            return output + random_output, mask
 
     def __repr__(self):
         s = ('{name}({in_channels}, {out_channels}, kernel_size={kernel_size}, stride={stride}, '
