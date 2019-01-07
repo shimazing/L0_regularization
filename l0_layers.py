@@ -39,7 +39,7 @@ class L0Dense(Module):
         self.local_rep = local_rep
         if bias:
             self.bias = Parameter(torch.Tensor(out_features))
-            self.bias_random = Parameter(torch.Tensor(out_features),
+            self.bias_random = Parameter(torch.Tensor(in_features),
                     requires_grad=False)
             self.use_bias = True
         self.floatTensor = torch.FloatTensor if not torch.cuda.is_available() else torch.cuda.FloatTensor
@@ -126,7 +126,6 @@ class L0Dense(Module):
         output = output + input.mm(self.weights_random)
         if self.use_bias:
             output.add_(self.bias)
-            output.add_(self.bias_random)
 
         return output
 
@@ -179,6 +178,8 @@ class L0Conv2d(Module):
         self.floatTensor = torch.FloatTensor if not torch.cuda.is_available() else torch.cuda.FloatTensor
         self.use_bias = False
         self.weights = Parameter(torch.Tensor(out_channels, in_channels // groups, *self.kernel_size))
+        self.weights_random = Parameter(torch.Tensor(out_channels, in_channels
+            // groups, *self.kernel_size), requires_grad=False)
         self.qz_loga = Parameter(torch.Tensor(out_channels))
         self.dim_z = out_channels
         self.input_shape = None
@@ -186,6 +187,8 @@ class L0Conv2d(Module):
 
         if bias:
             self.bias = Parameter(torch.Tensor(out_channels))
+            self.bias_random = Parameter(torch.Tensor(out_channels),
+                    requires_grad=False)
             self.use_bias = True
 
         self.reset_parameters()
@@ -193,11 +196,13 @@ class L0Conv2d(Module):
 
     def reset_parameters(self):
         init.kaiming_normal(self.weights, mode='fan_in')
+        init.kaiming_normal(self.weights_random, mode='fan_in')
 
         self.qz_loga.data.normal_(math.log(1 - self.droprate_init) - math.log(self.droprate_init), 1e-2)
 
         if self.use_bias:
             self.bias.data.fill_(0)
+            self.bias_random.data.normal_(0, 1) # TODO do we need random bias?
 
     def constrain_parameters(self, **kwargs):
         self.qz_loga.data.clamp_(min=math.log(1e-2), max=math.log(1e2))
@@ -243,7 +248,7 @@ class L0Conv2d(Module):
             expected_flops += num_instances_per_filter * ppos
             expected_l0 += ppos
 
-        return expected_flops.data[0], expected_l0.data[0]
+        return expected_flops.item(), expected_l0.item()
 
     def get_eps(self, size):
         """Uniform random numbers for the concrete distribution"""
@@ -269,14 +274,16 @@ class L0Conv2d(Module):
         if self.input_shape is None:
             self.input_shape = input_.size()
         b = None if not self.use_bias else self.bias
+        b_ = None if not self.use_bias else self.bias_random
+        output_ = F.conv2d(input_, self.weights_random, b_, self.stride, self.padding, self.dilation, self.groups)
         if self.local_rep or not self.training:
             output = F.conv2d(input_, self.weights, b, self.stride, self.padding, self.dilation, self.groups)
             z = self.sample_z(output.size(0), sample=self.training)
-            return output.mul(z)
+            return output.mul(z) + output_
         else:
             weights = self.sample_weights()
             output = F.conv2d(input_, weights, None, self.stride, self.padding, self.dilation, self.groups)
-            return output
+            return output + output_
 
     def __repr__(self):
         s = ('{name}({in_channels}, {out_channels}, kernel_size={kernel_size}, stride={stride}, '
