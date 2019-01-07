@@ -102,7 +102,6 @@ def main():
             conv_dims=args.conv_dims, fc_dims=args.fc_dim, N=60000,
                      weight_decay=args.weight_decay, lambas=args.lambas, local_rep=args.local_rep,
                      temperature=args.temp)
-
     optimizer = torch.optim.Adam(model.parameters(), args.lr)
     print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
 
@@ -214,10 +213,11 @@ def main():
 
     non_zero = 0
     features = model.compute_params()
-    non_zero = np.sum(non_zero)
+    non_zero = np.sum(features)
+    print(non_zero)
 
     total = sum([p.data.nelement() if p.requires_grad else 0 for p in model.parameters()])
-    print('[{}] Test Accuracy: {:.2f}, Non_zero ratio={:.2f}'.format(ckpt_name, test_acc*100, non_zero/total * 100))
+    print('[{}] Test Accuracy: {:.2f}, Non_zero={}'.format(ckpt_name, test_acc*100, non_zero))
     if args.tensorboard:
         writer.close()
 
