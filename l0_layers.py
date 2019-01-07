@@ -29,6 +29,8 @@ class L0Dense(Module):
         self.out_features = out_features
         self.prior_prec = weight_decay
         self.weights = Parameter(torch.Tensor(in_features, out_features))
+        self.weights_random = Parameter(torch.Tensor(in_features, out_features),
+                requires_grad=False)
         self.qz_loga = Parameter(torch.Tensor(in_features))
         self.temperature = temperature
         self.droprate_init = droprate_init if droprate_init != 0. else 0.5
@@ -37,6 +39,8 @@ class L0Dense(Module):
         self.local_rep = local_rep
         if bias:
             self.bias = Parameter(torch.Tensor(out_features))
+            self.bias_random = Parameter(torch.Tensor(out_features),
+                    requires_grad=False)
             self.use_bias = True
         self.floatTensor = torch.FloatTensor if not torch.cuda.is_available() else torch.cuda.FloatTensor
         self.reset_parameters()
@@ -44,11 +48,13 @@ class L0Dense(Module):
 
     def reset_parameters(self):
         init.kaiming_normal(self.weights, mode='fan_out')
+        init.kaiming_normal(self.weights_random, mode='fan_out')
 
         self.qz_loga.data.normal_(math.log(1 - self.droprate_init) - math.log(self.droprate_init), 1e-2)
 
         if self.use_bias:
             self.bias.data.fill_(0)
+            self.bias_random.data.normal_(0, 1) # TODO do we need random bias?
 
     def constrain_parameters(self, **kwargs):
         self.qz_loga.data.clamp_(min=math.log(1e-2), max=math.log(1e2))
@@ -57,11 +63,11 @@ class L0Dense(Module):
         """Implements the CDF of the 'stretched' concrete distribution"""
         xn = (x - limit_a) / (limit_b - limit_a)
         logits = math.log(xn) - math.log(1 - xn)
-        return F.sigmoid(logits * self.temperature - self.qz_loga).clamp(min=epsilon, max=1 - epsilon)
+        return torch.sigmoid(logits * self.temperature - self.qz_loga).clamp(min=epsilon, max=1 - epsilon)
 
     def quantile_concrete(self, x):
         """Implements the quantile, aka inverse CDF, of the 'stretched' concrete distribution"""
-        y = F.sigmoid((torch.log(x) - torch.log(1 - x) + self.qz_loga) / self.temperature)
+        y = torch.sigmoid((torch.log(x) - torch.log(1 - x) + self.qz_loga) / self.temperature)
         return y * (limit_b - limit_a) + limit_a
 
     def _reg_w(self):
@@ -85,7 +91,8 @@ class L0Dense(Module):
         if self.use_bias:
             expected_flops += self.out_features
             expected_l0 += self.out_features
-        return expected_flops.data[0], expected_l0.data[0]
+        #return expected_flops.data[0], expected_l0.data[0]
+        return expected_flops.item(), expected_l0.item()
 
     def get_eps(self, size):
         """Uniform random numbers for the concrete distribution"""
@@ -100,7 +107,7 @@ class L0Dense(Module):
             z = self.quantile_concrete(eps)
             return F.hardtanh(z, min_val=0, max_val=1)
         else:  # mode
-            pi = F.sigmoid(self.qz_loga).view(1, self.in_features).expand(batch_size, self.in_features)
+            pi = torch.sigmoid(self.qz_loga).view(1, self.in_features).expand(batch_size, self.in_features)
             return F.hardtanh(pi * (limit_b - limit_a) + limit_a, min_val=0, max_val=1)
 
     def sample_weights(self):
@@ -116,8 +123,11 @@ class L0Dense(Module):
         else:
             weights = self.sample_weights()
             output = input.mm(weights)
+        output = output + input.mm(self.weights_random)
         if self.use_bias:
             output.add_(self.bias)
+            output.add_(self.bias_random)
+
         return output
 
     def __repr__(self):
@@ -196,11 +206,11 @@ class L0Conv2d(Module):
         """Implements the CDF of the 'stretched' concrete distribution"""
         xn = (x - limit_a) / (limit_b - limit_a)
         logits = math.log(xn) - math.log(1 - xn)
-        return F.sigmoid(logits * self.temperature - self.qz_loga).clamp(min=epsilon, max=1 - epsilon)
+        return torch.sigmoid(logits * self.temperature - self.qz_loga).clamp(min=epsilon, max=1 - epsilon)
 
     def quantile_concrete(self, x):
         """Implements the quantile, aka inverse CDF, of the 'stretched' concrete distribution"""
-        y = F.sigmoid((torch.log(x) - torch.log(1 - x) + self.qz_loga) / self.temperature)
+        y = torch.sigmoid((torch.log(x) - torch.log(1 - x) + self.qz_loga) / self.temperature)
         return y * (limit_b - limit_a) + limit_a
 
     def _reg_w(self):
@@ -248,7 +258,7 @@ class L0Conv2d(Module):
             z = self.quantile_concrete(eps).view(batch_size, self.dim_z, 1, 1)
             return F.hardtanh(z, min_val=0, max_val=1)
         else:  # mode
-            pi = F.sigmoid(self.qz_loga).view(1, self.dim_z, 1, 1)
+            pi = torch.sigmoid(self.qz_loga).view(1, self.dim_z, 1, 1)
             return F.hardtanh(pi * (limit_b - limit_a) + limit_a, min_val=0, max_val=1)
 
     def sample_weights(self):

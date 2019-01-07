@@ -77,6 +77,14 @@ class L0MLP(nn.Module):
         params = deepcopy(list(p.data for p in self.parameters()))
         return params
 
+    def compute_params(self):
+           fake_data = torch.randn(1,self.input_dim)
+           if torch.cuda.is_available():
+               fake_data = fake_data.cuda()
+           features = []
+           for layer in self.layers:
+               features.append(layer.sample_z(fake_data.size(0), False).abs().sign().sum().item())
+           return features
 
 class L0LeNet5(nn.Module):
     def __init__(self, num_classes, input_size=(1, 28, 28), conv_dims=(20, 50), fc_dims=500,
