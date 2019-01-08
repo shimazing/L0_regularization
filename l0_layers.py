@@ -116,18 +116,22 @@ class L0Dense(Module):
     def forward(self, input, input_random=None):
         if self.local_rep or not self.training:
             z = self.sample_z(input.size(0), sample=self.training)
-            xin = input.mul(z.sign())
             if input_random is not None:
+                xin = input.mul(z.sign())
                 xin = xin + input_random
                 xin = F.relu(xin)
+            else:
+                xin = input
             output = xin.mul(z).mm(self.weights)
             output_random = xin.mm(self.weights_random)
         else: # train mode
             weights, mask = self.sample_weights()
-            xin = input.mul(mask)
             if input_random is not None:
+                xin = input.mul(mask)
                 xin = xin + input_random
                 xin = F.relu(xin)
+            else:
+                xin = input
             output = xin.mm(weights)
             output_random = xin.mm(self.weights_random)
 
