@@ -113,7 +113,9 @@ class L0LeNet5(nn.Module):
 
         if torch.cuda.is_available():
             self.convs = self.convs.cuda()
-        flat_fts = get_flat_fts(input_size, self.convs)
+        flat_fts, preflat_shape =  get_flat_fts(input_size, self.convs)
+        self.flat_fts = flat_fts
+        self.preflat_shape = preflat_shape
         fcs = [L0Dense(flat_fts, self.fc_dims, droprate_init=0.5, weight_decay=self.weight_decay,
                        lamba=lambas[2], local_rep=local_rep, temperature=temperature),
                L0Dense(self.fc_dims, num_classes, droprate_init=0.5, weight_decay=self.weight_decay,
@@ -195,14 +197,22 @@ class L0LeNet5(nn.Module):
         in_channels = 1
         in_features = None
         for layer in self.layers:
-            nonzero_groups = layer.sample_z(fake_data.size(0), False).abs().sign().sum().item()
+            sampled_z = layer.sample_z(fake_data.size(0), False).abs().sign().squeeze(0)#.sum().item()
+            z_len = torch.ones_like(sampled_z).sum().item()
+            nonzero_groups = sampled_z.sum().item()
             if isinstance(layer, L0Conv2d):
                 n_params.append(5 * 5 * in_channels * nonzero_groups)
+                if in_channels != 1:
+                    #print(self.preflat_shape)
+                    #print(sampled_z.shape)
+                    flatten_z = (torch.ones(*self.preflat_shape).to(sampled_z.device) * sampled_z).view(-1)
                 in_channels = nonzero_groups
             elif isinstance(layer, L0Dense):
                 if in_features is not None:
                     n_params.append(in_features * nonzero_groups)
-                in_features = nonzero_groups
+                    in_features = nonzero_groups
+                else:
+                    in_features = (sampled_z * flatten_z).sum().item()
         n_params.append(in_features * 10)
         print(n_params)
         return n_params

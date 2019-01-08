@@ -89,7 +89,7 @@ def get_flat_fts(in_size, fts):
     f = F.max_pool2d(output, 2).detach().cpu().numpy()
     #f = fts(torch.autograd.Variable(dummy_input))
     print('conv_out_size: {}'.format(f.shape))
-    return int(np.prod(f.shape[1:]))
+    return int(np.prod(f.shape[1:])), f.shape[1:]
 
 
 def adjust_learning_rate(optimizer, epoch, lr=0.1, lr_decay_ratio=0.1, epoch_drop=(), writer=None):
