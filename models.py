@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
 from l0_layers import L0Conv2d, L0Dense
+from l0_layers_parameterwise import L0Conv2dParam, L0DenseParam
 from base_layers import MAPConv2d, MAPDense
 from utils import get_flat_fts
 from copy import deepcopy
 import torch.nn.functional as F
+import numpy as np
 
 
 class L0MLP(nn.Module):
@@ -215,6 +217,114 @@ class L0LeNet5(nn.Module):
                     in_features = (sampled_z * flatten_z).sum().item()
         n_params.append(in_features * 10)
         print(n_params)
+        return n_params
+
+class L0LeNet5Param(nn.Module):
+    def __init__(self, num_classes, input_size=(1, 28, 28), conv_dims=(20, 50), fc_dims=500,
+                 N=50000, beta_ema=0., weight_decay=1, lambas=(1., 1., 1., 1.), local_rep=False,
+                 temperature=2./3., bias=True, bias_l0=True, droprate_init=0.5):
+        super(L0LeNet5Param, self).__init__()
+        self.N = N
+        assert(len(conv_dims) == 2)
+        self.conv_dims = conv_dims
+        self.fc_dims = fc_dims
+        self.beta_ema = beta_ema
+        self.weight_decay = weight_decay
+        self.input_size = input_size
+        convs = [L0Conv2dParam(input_size[0], conv_dims[0], 5,
+            droprate_init=droprate_init, temperature=temperature,
+                          #weight_decay=self.weight_decay,
+                          lamba=lambas[0],
+                          #local_rep=local_rep,
+                          bias=bias, bias_l0=bias_l0),
+                 nn.ReLU(), nn.MaxPool2d(2),
+                 L0Conv2dParam(conv_dims[0], conv_dims[1], 5,
+                     droprate_init=droprate_init, temperature=temperature,
+                          #weight_decay=self.weight_decay,
+                          lamba=lambas[1],
+                          #local_rep=local_rep,
+                          bias=bias, bias_l0=bias_l0),
+                 nn.ReLU(), nn.MaxPool2d(2)]
+        self.convs = nn.Sequential(*convs)
+
+        if torch.cuda.is_available():
+            self.convs = self.convs.cuda()
+        #  Calc fc input dim
+        dummy_input = torch.ones(1, *input_size)
+        if torch.cuda.is_available():
+            dummy_input = dummy_input.cuda()
+        flat_fts = int(np.prod(self.convs(dummy_input).detach().cpu().numpy().shape))
+        print("flat_fts", flat_fts)
+        #self.flat_fts = flat_fts
+        fcs = [L0DenseParam(flat_fts, self.fc_dims, droprate_init=droprate_init,
+            #weight_decay=self.weight_decay,
+                       lamba=lambas[2], #local_rep=local_rep,
+                       temperature=temperature, bias=bias, bias_l0=bias_l0),
+               nn.ReLU(),
+               L0DenseParam(self.fc_dims, num_classes,
+                   droprate_init=droprate_init, #weight_decay=self.weight_decay,
+                       lamba=lambas[3], #local_rep=local_rep,
+                       temperature=temperature, bias=bias, bias_l0=bias_l0)]
+        self.fcs = nn.Sequential(*fcs)
+
+        self.layers = []
+        for m in self.modules():
+            if isinstance(m, L0DenseParam) or isinstance(m, L0Conv2dParam):
+                self.layers.append(m)
+
+        if beta_ema > 0.:
+            print('Using temporal averaging with beta: {}'.format(beta_ema))
+            self.avg_param = deepcopy(list(p.data for p in self.parameters()))
+            if torch.cuda.is_available():
+                self.avg_param = [a.cuda() for a in self.avg_param]
+            self.steps_ema = 0.
+
+    def forward(self, x):
+        o = self.convs(x)
+        o = o.view(o.size(0), -1)
+        return self.fcs(o)
+
+
+    def regularization(self):
+        regularization = 0.
+        for layer in self.layers:
+            regularization += - (1. / self.N) * layer.regularization()
+        if torch.cuda.is_available():
+            regularization = regularization.cuda()
+        return regularization
+
+    def get_exp_flops_l0(self):
+        expected_flops, expected_l0 = 0., 0.
+        #for layer in self.layers:
+        #    e_fl, e_l0 = layer.count_expected_flops_and_l0()
+        #    expected_flops += e_fl
+        #    expected_l0 += e_l0
+        return expected_flops, expected_l0
+
+    def update_ema(self):
+        self.steps_ema += 1
+        for p, avg_p in zip(self.parameters(), self.avg_param):
+            avg_p.mul_(self.beta_ema).add_((1 - self.beta_ema) * p.data)
+
+    def load_ema_params(self):
+        for p, avg_p in zip(self.parameters(), self.avg_param):
+            p.data.copy_(avg_p / (1 - self.beta_ema**self.steps_ema))
+
+    def load_params(self, params):
+        for p, avg_p in zip(self.parameters(), params):
+            p.data.copy_(avg_p)
+
+    def get_params(self):
+        params = deepcopy(list(p.data for p in self.parameters()))
+        return params
+
+    def compute_params(self):
+        n_params = []
+        for layer in self.layers:
+            weight_mask, bias_mask = layer._get_mask()
+            weight_nonzero = weight_mask.abs().sign().sum().item()
+            bias_nonzero = bias_mask.abs().sign().sum().item() if bias_mask is not None else 0
+            n_params.append((weight_nonzero, bias_nonzero))
         return n_params
 
 
