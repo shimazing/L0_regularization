@@ -46,8 +46,8 @@ class L0Dense(Module):
         print(self)
 
     def reset_parameters(self):
-        init.kaiming_normal(self.weights, mode='fan_out')
-        init.kaiming_normal(self.weights_random, mode='fan_out')
+        init.kaiming_normal_(self.weights, mode='fan_out')
+        init.kaiming_normal_(self.weights_random, mode='fan_out')
 
         self.qz_loga.data.normal_(math.log(1 - self.droprate_init) - math.log(self.droprate_init), 1e-2)
 
@@ -206,8 +206,8 @@ class L0Conv2d(Module):
         print(self)
 
     def reset_parameters(self):
-        init.kaiming_normal(self.weights, mode='fan_in')
-        init.kaiming_normal(self.weights_random, mode='fan_in')
+        init.kaiming_normal_(self.weights, mode='fan_in')
+        init.kaiming_normal_(self.weights_random, mode='fan_in')
 
         self.qz_loga.data.normal_(math.log(1 - self.droprate_init) - math.log(self.droprate_init), 1e-2)
 
