@@ -143,9 +143,10 @@ class L0LeNet5(nn.Module):
 
         output, mask = self.convs[1](input, input_random)
         output = F.relu(output)
-        input = F.max_pool2d(output, 2)
+        input_random = output = F.max_pool2d(output, 2)
+        input = mask * output
 
-        input_random = None
+        input_random = input_random.view(input_random.shape[0], -1)
         input = input.view(input.shape[0], -1)
 
         for layer in self.fcs:

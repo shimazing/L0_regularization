@@ -42,7 +42,7 @@ for s in sparsity_list:
             args_list.append([i%4, l, s, rand_seed, model])
             i += 1
     print("# Total training samples={}".format(len(args_list)))
-    np.random.shuffle(args_list)
+    #np.random.shuffle(args_list)
     pool = Pool(processes=n_process)
     pool.map(run_exp, args_list)
 

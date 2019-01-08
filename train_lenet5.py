@@ -103,6 +103,7 @@ def main():
                      weight_decay=args.weight_decay, lambas=args.lambas, local_rep=args.local_rep,
                      temperature=args.temp)
 
+    param_list, name_list, noise_param_list, noise_name_list = [], [], [], []
     for name, param in model.named_parameters():
         if "random" not in name:
             param_list.append(param)
