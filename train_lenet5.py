@@ -102,6 +102,22 @@ def main():
             conv_dims=args.conv_dims, fc_dims=args.fc_dim, N=60000,
                      weight_decay=args.weight_decay, lambas=args.lambas, local_rep=args.local_rep,
                      temperature=args.temp)
+
+    for name, param in model.named_parameters():
+        if "random" not in name:
+            param_list.append(param)
+            name_list.append(name)
+        else:
+            # Adjust the sparsity of random noise parameters
+            if args.sparsity > 0:
+                param.data.mul_(torch.bernoulli(torch.ones_like(param) * (1 - args.sparsity)))
+            if args.verbose:
+                print("[{}] size: {}, # Non-zeros ratio= {:.2f}".format(name, param.size(),
+                                                                        param.data.sign().abs().sum().item() / np.prod(
+                                                                            param.size()) * 100))
+            noise_param_list.append(param)
+            noise_name_list.append(name)
+
     optimizer = torch.optim.Adam(model.parameters(), args.lr)
     print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
 

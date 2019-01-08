@@ -203,6 +203,7 @@ class L0LeNet5(nn.Module):
                     n_params.append(in_features * nonzero_groups)
                 in_features = nonzero_groups
         n_params.append(in_features * 10)
+        print(n_params)
         return n_params
 
 
