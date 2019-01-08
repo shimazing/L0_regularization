@@ -40,7 +40,7 @@ parser.add_argument("--bias", default=True, type=bool)
 parser.add_argument("--bias-l0", default=True, type=bool)
 parser.add_argument("--droprate-init", default=0.5, type=float)
 parser.add_argument('--beta_ema', type=float, default=0.999)
-parser.add_argument('--lambas', nargs='*', type=float, default=[0.1]*4)
+parser.add_argument('--lambas', nargs='*', type=float, default=[1.]*4)
 parser.add_argument('--local_rep', action='store_true')
 parser.add_argument('--temp', type=float, default=2./3.)
 parser.add_argument('--multi_gpu', action='store_true')
@@ -170,6 +170,7 @@ def main():
     def loss_function(output, target_var, model):
         loss = loglike(output, target_var)
         total_loss = loss + model.regularization()
+        #print(model.regularization())
         if torch.cuda.is_available():
             total_loss = total_loss.cuda()
         return total_loss

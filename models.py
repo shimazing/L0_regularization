@@ -288,7 +288,8 @@ class L0LeNet5Param(nn.Module):
     def regularization(self):
         regularization = 0.
         for layer in self.layers:
-            regularization += - (1. / self.N) * layer.regularization()
+            #regularization += - (1. / self.N) * layer.regularization()
+            regularization += (1. / self.N) * layer.regularization()
         if torch.cuda.is_available():
             regularization = regularization.cuda()
         return regularization
@@ -325,6 +326,7 @@ class L0LeNet5Param(nn.Module):
             weight_nonzero = weight_mask.abs().sign().sum().item()
             bias_nonzero = bias_mask.abs().sign().sum().item() if bias_mask is not None else 0
             n_params.append((weight_nonzero, bias_nonzero))
+        print("Nonzero Parameters", n_params)
         return n_params
 
 

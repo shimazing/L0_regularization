@@ -44,29 +44,30 @@ class _L0Norm(nn.Module):
         if self.training:
             self.uniform.uniform_(EPS, 1-EPS)
             u = self.uniform
-            s = F.sigmoid((torch.log(u) - torch.log(1 - u) + self.loc) / self.temp)
+            s = torch.sigmoid((torch.log(u) - torch.log(1 - u) + self.loc) / self.temp)
             s = s * (self.zeta - self.gamma) + self.gamma
-            penalty = F.sigmoid(self.loc - self.temp * self.gamma_zeta_ratio).sum()
+            penalty = torch.sigmoid(self.loc - self.temp * self.gamma_zeta_ratio).sum()
             if self._origin.bias is not None:
                 self.uniform_bias.uniform_(EPS, 1-EPS)
                 u_bias = self.uniform_bias
-                s_bias = F.sigmoid((torch.log(u_bias) - torch.log(1 - u_bias) +
+                s_bias = torch.sigmoid((torch.log(u_bias) - torch.log(1 - u_bias) +
                     self.loc_bias) / self.temp_bias)
                 s_bias = s_bias * (self.zeta - self.gamma) + self.gamma
-                penalty += F.sigmoid(self.loc_bias - self.temp_bias * self.gamma_zeta_ratio).sum()
+                penalty += torch.sigmoid(self.loc_bias - self.temp_bias * self.gamma_zeta_ratio).sum()
         else:
-            s = F.sigmoid(self.loc) * (self.zeta - self.gamma) + self.gamma
+            s = torch.sigmoid(self.loc) * (self.zeta - self.gamma) + self.gamma
             if self._origin.bias is not None:
-                s_bias = F.sigmoid(self.loc_bias) * (self.zeta - self.gamma) + self.gamma
+                s_bias = torch.sigmoid(self.loc_bias) * (self.zeta - self.gamma) + self.gamma
             penalty = 0
         weight_mask = hard_sigmoid(s)
         bias_mask = hard_sigmoid(s_bias) if s_bias is not None else None
         return weight_mask, bias_mask#, penalty
 
     def _get_panalty(self):
-        penalty = F.sigmoid(self.loc - self.temp * self.gamma_zeta_ratio).sum()
+        penalty = torch.sigmoid(self.loc - self.temp * self.gamma_zeta_ratio).sum()
         if self._origin.bias is not None:
-            penalty += F.sigmoid(self.loc_bias - self.temp_bias * self.gamma_zeta_ratio).sum()
+            penalty += torch.sigmoid(self.loc_bias - self.temp_bias *
+                self.gamma_zeta_ratio).sum()
         return self.lamba * penalty
 
     def regularization(self):
