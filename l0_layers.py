@@ -286,7 +286,8 @@ class L0Conv2d(Module):
             random_output = F.conv2d(input_random, self.weights_random, b_random,
                 self.stride, self.padding, self.dilation, self.groups)
         else:
-            random_output = 0.
+            random_output = F.conv2d(input, self.weights_random, b_random,
+                self.stride, self.padding, self.dilation, self.groups)
 
         if self.local_rep or not self.training:
             output = F.conv2d(input, self.weights, b, self.stride, self.padding, self.dilation, self.groups)
