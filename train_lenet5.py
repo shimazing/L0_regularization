@@ -187,8 +187,8 @@ def main():
                                       transform=transforms.Compose(train_tfms), download=True)
         valid_set = eval(dset_string)(root=DATA_DIR, train=True,
                                       transform=transforms.Compose(train_tfms), download=True)
-	if augment:
-		train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
+        if augment:
+            train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
         train_set = eval(dset_string)(root=DATA_DIR, train=True,
                                       transform=transforms.Compose(train_tfms), download=True)
     else:
