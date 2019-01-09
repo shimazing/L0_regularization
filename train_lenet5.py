@@ -209,8 +209,14 @@ def main():
     best_valid_acc = -1
     n_epoch_wo_improvement = 0
     for epoch in range(args.start_epoch, args.epochs):
+
         # train for one epoch
+        before_train_randomparam = [param.data.clone() for param in noise_param_list]
         train_loss, train_acc = train(train_loader, model, loss_function, optimizer, epoch)
+        after_train_randomparam = [param.data.clone() for param in noise_param_list]
+        # random weight constant test
+        for b, a in zip(before_train_randomparam, after_train_randomparam):
+            assert torch.all(b == a)
         # evaluate on validation set
         valid_loss, valid_acc = validate(valid_loader, model, loss_function, epoch)
 
