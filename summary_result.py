@@ -3,7 +3,7 @@ import numpy as np
 
 import torch
 import matplotlib
-matplotlib.use("Agg")
+#matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from models import L0MLP
 
@@ -44,7 +44,8 @@ def summary09():
                 acc_part = []
                 for rand_seed in rand_seed_list:
                     # "LeNet-300-100_L0_policy_0_0.0_noise_0.999_{0:.2e}_{0:.2e}_{0:.2e}_False_0.67.pth.tar".format(p)
-                    ckpt_name = ("{0}_{1}_policy_{2}_{3:.2f}_noise_{4:.3f}" + "_{5:.2e}" * len(args.lambas) + \
+                    ckpt_name = ("{0}_{1}_policy_{2}_{3:.2f}_noise_{4:.3f}" +
+                            "_{5:.2e}" * 4  + \
                             "_{6}_{7:.2f}.pth.tar").format(
                         model_name, args.policy, rand_seed, sparsity, 0.999,
                         n_param, False, 0.67
@@ -58,10 +59,10 @@ def summary09():
                     ratio_part.append(np.log(non_zero))
                     test_acc = ckpt["test_acc"]
                     acc_part.append(test_acc)
-                #ratio_list.append(np.mean(ratio_part))
-                #test_acc_list.append(np.mean(acc_part))
-                ratio_list += ratio_part
-                test_acc_list += acc_part
+                ratio_list.append(np.mean(ratio_part))
+                test_acc_list.append(np.mean(acc_part))
+                #ratio_list += ratio_part
+                #test_acc_list += acc_part
 
             #print("sparsity={:.1f}, epochs={}".format(sparsity, np.mean(epoch)))
             plt.scatter(ratio_list, test_acc_list, alpha=0.5, label=label_name)
@@ -82,11 +83,11 @@ def summary09():
     #plt.title("L0 policy, Results (avg. 10 trials)")
     plt.ylabel("Test Acc.")
     plt.xlabel("log(Non-zero)")
+    plt.show()
     plt.savefig("l0_policy_diff_models_avg.png")
     plt.yticks([0.97, 0.982, 0.984, 0.986])
     plt.ylim(0.97, 0.99)
     plt.savefig("l0_policy_diff_models_avg_acc_crop.png")
-    plt.show()
     plt.close()
 
 def summary08():
