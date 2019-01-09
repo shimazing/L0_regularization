@@ -81,9 +81,10 @@ def main():
     else:
         args.fc_dims = list(map(int, token[3:]))
 
+    augment = "Aug"
     ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
             "_{}_{:.2f}.pth.tar").format(
-        args.name, args.dataset, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
+        args.name, args.dataset + augment, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
         *args.lambas, args.local_rep, args.temp
     )
     if args.tensorboard:
@@ -182,11 +183,13 @@ def main():
         n_cls = 10 if args.dataset == 'cifar10' else 100
         dset_string = 'datasets.CIFAR10' if args.dataset == 'cifar10' else 'datasets.CIFAR100'
         train_tfms = [transforms.ToTensor(), normalize]
-        train_set = eval(dset_string)(root=DATA_DIR, train=True,
+        test_set = eval(dset_string)(root=DATA_DIR, train=False,
                                       transform=transforms.Compose(train_tfms), download=True)
         valid_set = eval(dset_string)(root=DATA_DIR, train=True,
                                       transform=transforms.Compose(train_tfms), download=True)
-        test_set = eval(dset_string)(root=DATA_DIR, train=False,
+        if augment:
+            train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
+        train_set = eval(dset_string)(root=DATA_DIR, train=True,
                                       transform=transforms.Compose(train_tfms), download=True)
     else:
         train_set = pMNIST(flat=False)
