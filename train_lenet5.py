@@ -78,9 +78,9 @@ def main():
     args.conv_dims = list(map(int, token[1:3]))
     args.fc_dim = int(token[3])
 
-    ckpt_name = ("{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
+    ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
             "_{}_{:.2f}.pth.tar").format(
-        args.name, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
+        args.name, args.dataset, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
         *args.lambas, args.local_rep, args.temp
     )
     if args.tensorboard:
@@ -99,8 +99,9 @@ def main():
     #train_loader, val_loader, num_classes = mnist(args.batch_size, pm=False)
 
     num_classes=10
+    input_size = (1, 28, 28) if args.dataset == 'mnist' else (3, 32, 32)
     # create model
-    model = L0LeNet5(num_classes, input_size=(1, 28, 28),
+    model = L0LeNet5(num_classes, input_size=input_size,
             conv_dims=args.conv_dims, fc_dims=args.fc_dim, N=60000,
                      weight_decay=args.weight_decay, lambas=args.lambas, local_rep=args.local_rep,
                      temperature=args.temp)
@@ -171,14 +172,24 @@ def main():
         return total_loss
 
     if args.dataset.startswith("cifar"):
+        from torchvision import transforms, datasets
+        DATA_DIR = './data/cifar10'
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
         n_cls = 10 if args.dataset == 'cifar10' else 100
         dset_string = 'datasets.CIFAR10' if args.dataset == 'cifar10' else 'datasets.CIFAR100'
+        train_tfms = [transforms.ToTensor(), normalize]
+        train_set = eval(dset_string)(root=DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+        valid_set = eval(dset_string)(root=DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+        test_set = eval(dset_string)(root=DATA_DIR, train=False,
+                                      transform=transforms.Compose(train_tfms), download=True)
     else:
         train_set = pMNIST(flat=False)
         valid_set = pMNIST(flat=False)
         test_set = pMNIST(train=False, flat=False)
+
     num_train = len(train_set)
     indices = list(range(num_train))
     valid_size = 0.25
@@ -186,7 +197,6 @@ def main():
     train_idx, valid_idx = indices[split:], indices[:split]
     train_sampler = SubsetRandomSampler(train_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
-
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
                                                sampler=train_sampler, **kwargs)
     valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
