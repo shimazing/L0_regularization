@@ -76,7 +76,10 @@ def main():
 
     token = args.name.split("-")
     args.conv_dims = list(map(int, token[1:3]))
-    args.fc_dim = int(token[3])
+    if args.dataset == 'mnist':
+        args.fc_dims = int(token[3])
+    else:
+        args.fc_dims = list(map(int, token[3:]))
 
     ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
             "_{}_{:.2f}.pth.tar").format(
@@ -102,7 +105,7 @@ def main():
     input_size = (1, 28, 28) if args.dataset == 'mnist' else (3, 32, 32)
     # create model
     model = L0LeNet5(num_classes, input_size=input_size,
-            conv_dims=args.conv_dims, fc_dims=args.fc_dim, N=60000,
+            conv_dims=args.conv_dims, fc_dims=args.fc_dims, N=60000,
                      weight_decay=args.weight_decay, lambas=args.lambas, local_rep=args.local_rep,
                      temperature=args.temp)
 

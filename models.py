@@ -118,10 +118,19 @@ class L0LeNet5(nn.Module):
         flat_fts, preflat_shape =  get_flat_fts(input_size, self.convs)
         self.flat_fts = flat_fts
         self.preflat_shape = preflat_shape
-        fcs = [L0Dense(flat_fts, self.fc_dims, droprate_init=0.5, weight_decay=self.weight_decay,
+        if input_size == (1, 28, 28):
+            fcs = [L0Dense(flat_fts, self.fc_dims, droprate_init=0.5, weight_decay=self.weight_decay,
                        lamba=lambas[2], local_rep=local_rep, temperature=temperature),
                L0Dense(self.fc_dims, num_classes, droprate_init=0.5, weight_decay=self.weight_decay,
                        lamba=lambas[3], local_rep=local_rep, temperature=temperature)]
+        else: # cifar10
+            fcs = [L0Dense(flat_fts, self.fc_dims[0], droprate_init=0.5, weight_decay=self.weight_decay,
+                       lamba=lambas[2], local_rep=local_rep, temperature=temperature),
+                   L0Dense(self.fc_dims[0], self.fc_dims[1], droprate_init=0.5, weight_decay=self.weight_decay,
+                       lamba=lambas[3], local_rep=local_rep, temperature=temperature),
+                   L0Dense(self.fc_dims[1], num_classes, droprate_init=0.5, weight_decay=self.weight_decay,
+                       lamba=lambas[4], local_rep=local_rep, temperature=temperature)]
+
         self.fcs = nn.ModuleList(fcs)
 
         self.layers = []
