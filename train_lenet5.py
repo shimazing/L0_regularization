@@ -46,6 +46,8 @@ parser.add_argument("--sparsity", type=float, default=0.0)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
 parser.add_argument("--rand_seed", type=int, default=1)
+parser.add_argument("--dataset", type=str, default="mnist", choices=["mnist",
+    "cifar10", "cifar100"])
 parser.set_defaults(tensorboard=True)
 
 args = parser.parse_args()
@@ -168,9 +170,15 @@ def main():
             total_loss = total_loss.cuda()
         return total_loss
 
-    train_set = pMNIST(flat=False)
-    valid_set = pMNIST(flat=False)
-    test_set = pMNIST(train=False, flat=False)
+    if args.dataset.startswith("cifar"):
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        n_cls = 10 if args.dataset == 'cifar10' else 100
+        dset_string = 'datasets.CIFAR10' if args.dataset == 'cifar10' else 'datasets.CIFAR100'
+    else:
+        train_set = pMNIST(flat=False)
+        valid_set = pMNIST(flat=False)
+        test_set = pMNIST(train=False, flat=False)
     num_train = len(train_set)
     indices = list(range(num_train))
     valid_size = 0.25
