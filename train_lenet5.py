@@ -61,8 +61,6 @@ if args.cuda:
     torch.cuda.manual_seed_all(args.rand_seed)
 ZERO_THRESHOLD = 1e-5
 parser.set_defaults(tensorboard=False)
-
-## best_prec1 = 100
 writer = None
 total_steps = 0
 exp_flops, exp_l0 = [], []
@@ -81,7 +79,7 @@ def main():
     else:
         args.fc_dims = list(map(int, token[3:]))
 
-    augment = "Aug"
+    augment = "Aug" if args.dataset != 'mnist' else ""
     ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
             "_{}_{:.2f}.pth.tar").format(
         args.name, args.dataset + augment, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
@@ -145,7 +143,6 @@ def main():
             checkpoint = torch.load(path)
             args.start_epoch = checkpoint['epoch']
             test_acc = checkpoint['test_acc']
-            #best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             total_steps = checkpoint['total_steps']

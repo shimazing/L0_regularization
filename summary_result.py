@@ -5,8 +5,7 @@ import torch
 import matplotlib
 #matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from models import L0MLP
-
+from models import L0MLP, L0LeNet5
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="MLP-300-100")
@@ -16,10 +15,53 @@ parser.add_argument("--sparsity", type=float, default=0.0)
 parser.add_argument("--n_param", type=float)
 args = parser.parse_args()
 
+def test(test_loader, model, epoch):
+    """Perform validation on the validation set"""
+    batch_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+
+    # switch to evaluate mode
+    model.eval()
+    if model.module.beta_ema > 0:
+        old_params = model.module.get_params()
+        model.module.load_ema_params()
+    model.zero_out_pruned_param()
+
+    end = time.time()
+    acc_part = []
+    with torch.no_grad():
+        for i, (input_, target) in enumerate(test_loader):
+            if torch.cuda.is_available():
+                target = target.cuda(async=True)
+                input_ = input_.cuda()
+            # compute output
+            output = model(input_)
+            preds = output.max(dim=1)[1]
+
+            # measure accuracy and record loss
+            # prec1 = accuracy(output.item(), target, topk=(1,))[0]
+            prec1 = (preds == target).sum().item() / preds.size(0)
+            top1.update(100 - prec1*100, input_.size(0))
+            acc_part.append(prec1)
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+    if model.module.beta_ema > 0:
+        model.module.load_params(old_params)
+
+    return np.mean(acc_part)
+
 def summary09():
+    from data_loader import pMNIST
+    kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=100, shuffle=False, **kwargs)
+    test_set = pMNIST(train=False, flat=False)
+
     sparsity_list = [0.0, 1.0]
     model_list = ["L0LeNet5-20-50-500", "L0LeNet5-40-75-1000", "L0LeNet-60-100-1500"]
-    lambda_list =  [0.001, 0.01, 0.1, 0.2, 0.4] #list(np.arange(0.1, 0.15, 0.01)) + list(np.arange(0.15, 0.2, 0.01))+ list(np.arange(0.3, 0.4, 0.02))
+    lambda_list =  [0.001, 0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2] #list(np.arange(0.1, 0.15, 0.01)) + list(np.arange(0.15, 0.2, 0.01))+ list(np.arange(0.3, 0.4, 0.02))
     #np.random.seed(1234)
     #sparsity_list = [0.0, 1.0]
     #n_param_list = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.5, 5.0,
@@ -59,8 +101,27 @@ def summary09():
                     ratio_part.append(np.log(non_zero))
                     test_acc = ckpt["test_acc"]
                     acc_part.append(test_acc)
+
+                    token = ckpt["name"].split("-")
+                    conv_dims = list(map(int, token[1:3]))
+                    fc_dims = int(token[3])
+
+                    model = L0LeNet5(10, input_size=(1, 28, 28),
+                            conv_dims=conv_dims, fc_dims=fc_dims, N=60000,
+                            weight_decay=5e-4, lambas=[n_param]*4, local_rep=False,
+                                     temperature=2./3.)
+                    model.cuda()
+                    model.load_state_dict(ckpt["model_state_dict"])
+                    if model.beta_ema > 0:
+                        model.avg_param = state['avg_params']
+                        model.steps_ema = state['steps_ema']
+
+                    test_acc_debug = test(test_loader, model, ckpt['epoch'])
+                    assert test_acc == test_acc_debug, "test acc {}, debug {}".format(test_acc, test_acc_debug)
+
                 ratio_list.append(np.mean(ratio_part))
                 test_acc_list.append(np.mean(acc_part))
+
                 #ratio_list += ratio_part
                 #test_acc_list += acc_part
 
@@ -74,10 +135,10 @@ def summary09():
                 print("[{}, sparsity={:.1f}] Test Error= {:.2f}, log(Non-zero)= {:.2f}".format(model_name, sparsity, 100-100*test_acc_list[i], ratio_list[i]))
 
     plt.legend(loc="lower right")
-    #plt.axhline(y=0.982, color="black", alpha=0.3, linestyle="--")
+    plt.axhline(y=0.991, color="black", alpha=0.3, linestyle="--")
     #plt.axhline(y=0.984, color="blue", alpha=0.3, linestyle="--")
     #plt.axhline(y=0.986, color="red", alpha=0.3, linestyle="--")
-    #plt.axvline(x=10.19, color="black", alpha=0.3, linestyle="--")
+    plt.axvline(x=10.55, color="black", alpha=0.3, linestyle="--")
     #plt.axvline(x=11.15, color="black", alpha=0.3, linestyle="--")
     #plt.xticks([0, 3.59, 10, 20, 26.02, 30, 40, 50], rotation="vertical")
     #plt.title("L0 policy, Results (avg. 10 trials)")

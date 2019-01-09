@@ -148,7 +148,7 @@ class L0LeNet5(nn.Module):
     def forward(self, x):
         input = x
         input_random = None
-
+        # conv
         output, mask = self.convs[0](input, input_random)
         output = F.relu(output)
         input_random = output = F.max_pool2d(output, 2)
@@ -161,7 +161,7 @@ class L0LeNet5(nn.Module):
 
         input_random = input_random.view(input_random.shape[0], -1)
         input = input.view(input.shape[0], -1)
-
+        # fc
         for layer in self.fcs:
             input, input_random = layer(input, input_random)
         return input + input_random
@@ -227,6 +227,25 @@ class L0LeNet5(nn.Module):
         n_params.append(in_features * 10)
         print(n_params)
         return n_params
+
+    def zero_out_pruned_param(self):
+        sampled_z_list = []
+        for i, layer in enumerate(self.layers):
+            sampled_z = layer.sample_z(fake_data.size(0), False).abs().sign().squeeze(0)#.sum().item()
+            if isinstance(layer, L0Conv2d):
+                layer.weights.data.mul_(sampled_z.view(-1, 1, 1, 1))
+                layer.bias.data.mul(sampled_z.view(-1))
+                if isinstance(self.layers[i + 1], L0Conv2d):
+                    self.layers[i + 1].weights.data.mul_(sampled_z(1, -1, 1, 1))
+            else:
+                layer.weights.data.mul_(sampled_z.view(-1, 1))
+                if isinstance(self.layers[i-1], L0Conv2d):
+                    flatten_z = (torch.ones(*self.preflat_shape).to(sampled_z.device) * sampled_z_list[-1]).view(-1)
+                    layer.weights.data.mul_(flatten_z.view(-1, 1))
+                else: # prev is dense layer
+                    self.layers[i - 1].weights.data.mul_(sampled_z)
+                    self.layers[i - 1].bias.data.mul_(sampled_z)
+            sampled_z_list.append(sampled_z)
 
 class L0LeNet5Param(nn.Module):
     def __init__(self, num_classes, input_size=(1, 28, 28), conv_dims=(20, 50), fc_dims=500,
