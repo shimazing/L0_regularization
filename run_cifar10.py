@@ -9,7 +9,7 @@ import numpy as np
 from multiprocessing import Pool
 
 def run_exp(args):
-    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_lenet5.py --epochs 500 --dataset cifar10
+    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_lenet5.py --epochs 500 --dataset cifar10 \
     --verbose  --lambas {1} {1} {1} {1} {1} --sparsity {2} --rand_seed {3} \
     --name {4} --beta_ema {5}".format(
         args[0], args[1], args[2], args[3], args[4], args[5])
