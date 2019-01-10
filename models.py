@@ -231,12 +231,12 @@ class L0LeNet5(nn.Module):
     def zero_out_pruned_param(self):
         sampled_z_list = []
         for i, layer in enumerate(self.layers):
-            sampled_z = layer.sample_z(fake_data.size(0), False).abs().sign().squeeze(0)#.sum().item()
+            sampled_z = layer.sample_z(1, False).abs().sign().squeeze(0)#.sum().item()
             if isinstance(layer, L0Conv2d):
                 layer.weights.data.mul_(sampled_z.view(-1, 1, 1, 1))
                 layer.bias.data.mul(sampled_z.view(-1))
                 if isinstance(self.layers[i + 1], L0Conv2d):
-                    self.layers[i + 1].weights.data.mul_(sampled_z(1, -1, 1, 1))
+                    self.layers[i + 1].weights.data.mul_(sampled_z.view(1, -1, 1, 1))
             else:
                 layer.weights.data.mul_(sampled_z.view(-1, 1))
                 if isinstance(self.layers[i-1], L0Conv2d):
@@ -246,6 +246,7 @@ class L0LeNet5(nn.Module):
                     self.layers[i - 1].weights.data.mul_(sampled_z)
                     self.layers[i - 1].bias.data.mul_(sampled_z)
             sampled_z_list.append(sampled_z)
+
 
 class L0LeNet5Param(nn.Module):
     def __init__(self, num_classes, input_size=(1, 28, 28), conv_dims=(20, 50), fc_dims=500,
