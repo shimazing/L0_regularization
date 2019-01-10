@@ -81,9 +81,9 @@ def main():
 
     augment = "Aug" if args.dataset != 'mnist' else ""
     ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
-            "_{}_{:.2f}.pth.tar").format(
+            "_{}_{:.2f}_epochs_{}.pth.tar").format(
         args.name, args.dataset + augment, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
-        *args.lambas, args.local_rep, args.temp
+        *args.lambas, args.local_rep, args.temp, args.epochs
     )
     if args.tensorboard:
         # used for logging to TensorBoard
