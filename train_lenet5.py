@@ -36,7 +36,7 @@ parser.add_argument('--no-tensorboard', dest='tensorboard', action='store_false'
                     help='whether to use tensorboard (default: True)')
 parser.add_argument("--noise", action="store_true", default=True,
                     help="Random Noise on weight matrix")
-parser.add_argument('--beta_ema', type=float, default=0.999)
+parser.add_argument('--beta_ema', type=float, default=0.0)
 parser.add_argument('--lambas', nargs='*', type=float, default=[0.1]*4)
 parser.add_argument('--local_rep', action='store_true')
 parser.add_argument('--temp', type=float, default=2./3.)
@@ -251,7 +251,7 @@ def main():
             if model.beta_ema > 0:
                 state['avg_params'] = model.avg_param
                 state['steps_ema'] = model.steps_ema
-            save_checkpoint(state, is_best, ckpt_name)
+            save_checkpoint(state, is_best, ckpt_name, epoch + 1)
         else:
             n_epoch_wo_improvement += 1
 
