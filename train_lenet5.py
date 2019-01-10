@@ -60,7 +60,7 @@ torch.manual_seed(args.rand_seed)
 if args.cuda:
     torch.cuda.manual_seed_all(args.rand_seed)
 ZERO_THRESHOLD = 1e-5
-parser.set_defaults(tensorboard=False)
+#parser.set_defaults(tensorboard=False)
 writer = None
 total_steps = 0
 exp_flops, exp_l0 = [], []
