@@ -106,7 +106,7 @@ def main():
     model = L0LeNet5(num_classes, input_size=input_size,
             conv_dims=args.conv_dims, fc_dims=args.fc_dims, N=60000,
                      weight_decay=args.weight_decay, lambas=args.lambas, local_rep=args.local_rep,
-                     temperature=args.temp)
+                     temperature=args.temp, beta_ema=args.beta_ema)
 
     param_list, name_list, noise_param_list, noise_name_list = [], [], [], []
     for name, param in model.named_parameters():
