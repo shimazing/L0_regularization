@@ -88,7 +88,7 @@ def main():
     if args.tensorboard:
         # used for logging to TensorBoard
         from tensorboardX import SummaryWriter
-        directory = 'logs/{}/{}'.format(log_dir_net, args.name)
+        directory = ckpt_name + '/logs'
         if os.path.exists(directory):
             shutil.rmtree(directory)
             os.makedirs(directory)
