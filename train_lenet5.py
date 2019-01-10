@@ -136,6 +136,7 @@ def main():
     train_acc_list = []
     valid_loss_list = []
     valid_acc_list = []
+    nonzero_list = []
     if args.resume:
         path = os.path.join(CKPT_DIR, ckpt_name)
         if os.path.exists(path):
@@ -152,6 +153,7 @@ def main():
             train_acc_list = checkpoint["train_acc_list"]
             valid_loss_list = checkpoint["valid_loss_list"]
             valid_acc_list = checkpoint["valid_acc_list"]
+            nonzero_list = checkpoint["nonzero_list"]
             print(" *** Resume: [{}] Test Acc: {:.2f}, epoch: {} ***".format(ckpt_name, checkpoint["test_acc"]*100, checkpoint["epoch"]))
             if checkpoint['beta_ema'] > 0:
                 #model.beta_ema = checkpoint['beta_ema']
@@ -219,11 +221,14 @@ def main():
             assert torch.all(b == a)
         # evaluate on validation set
         valid_loss, valid_acc = validate(valid_loader, model, loss_function, epoch)
-
         train_loss_list.append(train_loss)
         train_acc_list.append(train_acc)
         valid_loss_list.append(valid_loss)
         valid_acc_list.append(valid_acc)
+
+        features, architecture = model.compute_params()
+        non_zero = np.sum(features)
+        nonzero_list.append(non_zero)
 
         # remember best prec@1 and save checkpoint
         is_best = valid_acc > best_valid_acc
@@ -242,6 +247,7 @@ def main():
                 'train_acc_list': train_acc_list,
                 'valid_loss_list': valid_loss_list,
                 "valid_acc_list": valid_acc_list,
+                "nonzero_list": nonzero_list,
                 "test_acc": test_acc,
                 'optim_state_dict': optimizer.state_dict(),
                 'total_steps': total_steps,
@@ -255,8 +261,7 @@ def main():
         else:
             n_epoch_wo_improvement += 1
 
-    non_zero = 0
-    features = model.compute_params()
+    features, architecture = model.compute_params()
     non_zero = np.sum(features)
     print(non_zero)
 

@@ -204,6 +204,7 @@ class L0LeNet5(nn.Module):
         fake_data = torch.randn(1, *self.input_size)
         if torch.cuda.is_available():
             fake_data = fake_data.cuda()
+        z_l0 = []
         n_params = []
         in_channels = 1
         in_features = None
@@ -211,6 +212,7 @@ class L0LeNet5(nn.Module):
             sampled_z = layer.sample_z(fake_data.size(0), False).abs().sign().squeeze(0)#.sum().item()
             z_len = torch.ones_like(sampled_z).sum().item()
             nonzero_groups = sampled_z.sum().item()
+            z_l0.append(nonzero_groups)
             if isinstance(layer, L0Conv2d):
                 n_params.append(5 * 5 * in_channels * nonzero_groups)
                 if in_channels != 1:
@@ -226,7 +228,7 @@ class L0LeNet5(nn.Module):
                     in_features = (sampled_z * flatten_z).sum().item()
         n_params.append(in_features * 10)
         print(n_params)
-        return n_params
+        return n_params, z_l0
 
     def zero_out_pruned_param(self):
         sampled_z_list = []
