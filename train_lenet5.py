@@ -36,7 +36,7 @@ parser.add_argument('--no-tensorboard', dest='tensorboard', action='store_false'
                     help='whether to use tensorboard (default: True)')
 parser.add_argument("--noise", action="store_true", default=True,
                     help="Random Noise on weight matrix")
-parser.add_argument('--beta_ema', type=float, default=0.999)
+parser.add_argument('--beta_ema', type=float, default=0.0)
 parser.add_argument('--lambas', nargs='*', type=float, default=[0.1]*4)
 parser.add_argument('--local_rep', action='store_true')
 parser.add_argument('--temp', type=float, default=2./3.)
@@ -60,7 +60,7 @@ torch.manual_seed(args.rand_seed)
 if args.cuda:
     torch.cuda.manual_seed_all(args.rand_seed)
 ZERO_THRESHOLD = 1e-5
-parser.set_defaults(tensorboard=False)
+#parser.set_defaults(tensorboard=False)
 writer = None
 total_steps = 0
 exp_flops, exp_l0 = [], []
@@ -81,14 +81,14 @@ def main():
 
     augment = "Aug" if args.dataset != 'mnist' else ""
     ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
-            "_{}_{:.2f}.pth.tar").format(
+            "_{}_{:.2f}_epochs_{}.pth.tar").format(
         args.name, args.dataset + augment, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
-        *args.lambas, args.local_rep, args.temp
+        *args.lambas, args.local_rep, args.temp, args.epochs
     )
     if args.tensorboard:
         # used for logging to TensorBoard
         from tensorboardX import SummaryWriter
-        directory = 'logs/{}/{}'.format(log_dir_net, args.name)
+        directory = ckpt_name + '/logs'
         if os.path.exists(directory):
             shutil.rmtree(directory)
             os.makedirs(directory)
@@ -106,7 +106,7 @@ def main():
     model = L0LeNet5(num_classes, input_size=input_size,
             conv_dims=args.conv_dims, fc_dims=args.fc_dims, N=60000,
                      weight_decay=args.weight_decay, lambas=args.lambas, local_rep=args.local_rep,
-                     temperature=args.temp)
+                     temperature=args.temp, beta_ema=args.beta_ema)
 
     param_list, name_list, noise_param_list, noise_name_list = [], [], [], []
     for name, param in model.named_parameters():
@@ -136,6 +136,7 @@ def main():
     train_acc_list = []
     valid_loss_list = []
     valid_acc_list = []
+    nonzero_list = []
     if args.resume:
         path = os.path.join(CKPT_DIR, ckpt_name)
         if os.path.exists(path):
@@ -152,6 +153,7 @@ def main():
             train_acc_list = checkpoint["train_acc_list"]
             valid_loss_list = checkpoint["valid_loss_list"]
             valid_acc_list = checkpoint["valid_acc_list"]
+            nonzero_list = checkpoint["nonzero_list"]
             print(" *** Resume: [{}] Test Acc: {:.2f}, epoch: {} ***".format(ckpt_name, checkpoint["test_acc"]*100, checkpoint["epoch"]))
             if checkpoint['beta_ema'] > 0:
                 #model.beta_ema = checkpoint['beta_ema']
@@ -219,11 +221,14 @@ def main():
             assert torch.all(b == a)
         # evaluate on validation set
         valid_loss, valid_acc = validate(valid_loader, model, loss_function, epoch)
-
         train_loss_list.append(train_loss)
         train_acc_list.append(train_acc)
         valid_loss_list.append(valid_loss)
         valid_acc_list.append(valid_acc)
+
+        features, architecture = model.compute_params()
+        non_zero = np.sum(features)
+        nonzero_list.append(non_zero)
 
         # remember best prec@1 and save checkpoint
         is_best = valid_acc > best_valid_acc
@@ -242,6 +247,7 @@ def main():
                 'train_acc_list': train_acc_list,
                 'valid_loss_list': valid_loss_list,
                 "valid_acc_list": valid_acc_list,
+                "nonzero_list": nonzero_list,
                 "test_acc": test_acc,
                 'optim_state_dict': optimizer.state_dict(),
                 'total_steps': total_steps,
@@ -251,12 +257,11 @@ def main():
             if model.beta_ema > 0:
                 state['avg_params'] = model.avg_param
                 state['steps_ema'] = model.steps_ema
-            save_checkpoint(state, is_best, ckpt_name)
+            save_checkpoint(state, is_best, ckpt_name, epoch + 1)
         else:
             n_epoch_wo_improvement += 1
 
-    non_zero = 0
-    features = model.compute_params()
+    features, architecture = model.compute_params()
     non_zero = np.sum(features)
     print(non_zero)
 
