@@ -6,6 +6,7 @@ import matplotlib
 #matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from models import L0MLP, L0LeNet5
+from utils import AverageMeter, accuracy
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="MLP-300-100")
@@ -17,18 +18,16 @@ args = parser.parse_args()
 
 def test(test_loader, model, epoch):
     """Perform validation on the validation set"""
-    batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
 
     # switch to evaluate mode
     model.eval()
-    if model.module.beta_ema > 0:
-        old_params = model.module.get_params()
-        model.module.load_ema_params()
+    if model.beta_ema > 0:
+        old_params = model.get_params()
+        model.load_ema_params()
     model.zero_out_pruned_param()
 
-    end = time.time()
     acc_part = []
     with torch.no_grad():
         for i, (input_, target) in enumerate(test_loader):
@@ -44,20 +43,17 @@ def test(test_loader, model, epoch):
             prec1 = (preds == target).sum().item() / preds.size(0)
             top1.update(100 - prec1*100, input_.size(0))
             acc_part.append(prec1)
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
 
-    if model.module.beta_ema > 0:
-        model.module.load_params(old_params)
+    if model.beta_ema > 0:
+        model.load_params(old_params)
 
     return np.mean(acc_part)
 
 def summary09():
     from data_loader import pMNIST
-    kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=100, shuffle=False, **kwargs)
+    kwargs = {'num_workers': 1, 'pin_memory': True}
     test_set = pMNIST(train=False, flat=False)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=100, shuffle=False, **kwargs)
 
     sparsity_list = [0.0, 1.0]
     model_list = ["L0LeNet5-20-50-500", "L0LeNet5-40-75-1000", "L0LeNet-60-100-1500"]
@@ -102,7 +98,7 @@ def summary09():
                     test_acc = ckpt["test_acc"]
                     acc_part.append(test_acc)
 
-                    token = ckpt["name"].split("-")
+                    token = ckpt["model"].split("-")
                     conv_dims = list(map(int, token[1:3]))
                     fc_dims = int(token[3])
 
