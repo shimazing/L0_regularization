@@ -10,7 +10,8 @@ import numpy as np
 
 
 class L0MLP(nn.Module):
-    def __init__(self, input_dim, num_classes, layer_dims=(300, 100), N=50000, beta_ema=0.999,
+    def __init__(self, input_dim, num_classes, layer_dims=(300, 100), N=50000,
+            beta_ema=0.0,
                  weight_decay=1, lambas=(1., 1., 1.), local_rep=False, temperature=2./3.):
         super(L0MLP, self).__init__()
         self.layer_dims = layer_dims
@@ -287,12 +288,28 @@ class L0LeNet5Param(nn.Module):
         flat_fts = int(np.prod(self.convs(dummy_input).detach().cpu().numpy().shape))
         print("flat_fts", flat_fts)
         #self.flat_fts = flat_fts
-        fcs = [L0DenseParam(flat_fts, self.fc_dims, droprate_init=droprate_init,
+        if input_size == (1, 28, 28):
+            fcs = [L0DenseParam(flat_fts, self.fc_dims, droprate_init=droprate_init,
             #weight_decay=self.weight_decay,
                        lamba=lambas[2], #local_rep=local_rep,
                        temperature=temperature, bias=bias, bias_l0=bias_l0),
                nn.ReLU(),
                L0DenseParam(self.fc_dims, num_classes,
+                   droprate_init=droprate_init, #weight_decay=self.weight_decay,
+                       lamba=lambas[3], #local_rep=local_rep,
+                       temperature=temperature, bias=bias, bias_l0=bias_l0)]
+        else:
+            fcs = [L0DenseParam(flat_fts, self.fc_dims[0], droprate_init=droprate_init,
+            #weight_decay=self.weight_decay,
+                       lamba=lambas[2], #local_rep=local_rep,
+                       temperature=temperature, bias=bias, bias_l0=bias_l0),
+               nn.ReLU(),
+               L0DenseParam(self.fc_dims[0], self.fc_dims[1],
+                   droprate_init=droprate_init, #weight_decay=self.weight_decay,
+                       lamba=lambas[3], #local_rep=local_rep,
+                       temperature=temperature, bias=bias, bias_l0=bias_l0),
+               nn.ReLU(),
+               L0DenseParam(self.fc_dims[1], num_classes,
                    droprate_init=droprate_init, #weight_decay=self.weight_decay,
                        lamba=lambas[3], #local_rep=local_rep,
                        temperature=temperature, bias=bias, bias_l0=bias_l0)]

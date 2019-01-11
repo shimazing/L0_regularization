@@ -88,7 +88,7 @@ def main():
     if args.tensorboard:
         # used for logging to TensorBoard
         from tensorboardX import SummaryWriter
-        directory = ckpt_name + '/logs'
+        directory = 'runs/' + ckpt_name + '/logs'
         if os.path.exists(directory):
             shutil.rmtree(directory)
             os.makedirs(directory)
@@ -156,7 +156,6 @@ def main():
             nonzero_list = checkpoint["nonzero_list"]
             print(" *** Resume: [{}] Test Acc: {:.2f}, epoch: {} ***".format(ckpt_name, checkpoint["test_acc"]*100, checkpoint["epoch"]))
             if checkpoint['beta_ema'] > 0:
-                #model.beta_ema = checkpoint['beta_ema']
                 model.avg_param = checkpoint['avg_params']
                 model.steps_ema = checkpoint['steps_ema']
         else:
@@ -211,7 +210,6 @@ def main():
     best_valid_acc = -1
     n_epoch_wo_improvement = 0
     for epoch in range(args.start_epoch, args.epochs):
-
         # train for one epoch
         before_train_randomparam = [param.data.clone() for param in noise_param_list]
         train_loss, train_acc = train(train_loader, model, loss_function, optimizer, epoch)
