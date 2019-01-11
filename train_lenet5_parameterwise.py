@@ -39,15 +39,17 @@ parser.add_argument("--noise", action="store_true", default=True,
 parser.add_argument("--bias", default=True, type=bool)
 parser.add_argument("--bias-l0", default=True, type=bool)
 parser.add_argument("--droprate-init", default=0.5, type=float)
-parser.add_argument('--beta_ema', type=float, default=0.999)
+parser.add_argument('--beta_ema', type=float, default=0.0)
 parser.add_argument('--lambas', nargs='*', type=float, default=[1.]*4)
 parser.add_argument('--local_rep', action='store_true')
 parser.add_argument('--temp', type=float, default=2./3.)
 parser.add_argument('--multi_gpu', action='store_true')
-parser.add_argument("--policy", type=str, default="L0")
+parser.add_argument("--policy", type=str, default="L0Param")
 parser.add_argument("--sparsity", type=float, default=0.0)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
+parser.add_argument("--dataset", type=str, default="mnist", choices=["mnist",
+    "cifar10", "cifar100"])
 parser.add_argument("--rand_seed", type=int, default=1)
 parser.set_defaults(tensorboard=True)
 
@@ -77,18 +79,21 @@ def main():
 
     token = args.name.split("-")
     args.conv_dims = list(map(int, token[1:3]))
-    args.fc_dim = int(token[3])
+    if args.dataset == 'mnist':
+        args.fc_dims = int(token[3])
+    else:
+        args.fc_dims = list(map(int, token[3:]))
 
-    ckpt_name = ("{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
-            "_{}_{:.2f}_bias_{}_biasl0_{}_droprate_init_{:.2f}.pth.tar").format(
-        args.name, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
+    ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
+            "_{}_{:.2f}_bias_{}_biasl0_{}_droprate_init_{:.2f}_epochs_{}.pth.tar").format(
+        args.name, args.dataset, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
         *args.lambas, args.local_rep, args.temp, args.bias, args.bias_l0,
-        args.droprate_init
+        args.droprate_init, args.epochs
     )
     if args.tensorboard:
         # used for logging to TensorBoard
         from tensorboardX import SummaryWriter
-        directory = 'logs/{}/{}'.format(log_dir_net, args.name)
+        directory = 'runs/' +  ckpt_name + 'logs'#'logs/{}/{}'.format(log_dir_net, args.name)
         if os.path.exists(directory):
             shutil.rmtree(directory)
             os.makedirs(directory)
@@ -101,13 +106,15 @@ def main():
     #train_loader, val_loader, num_classes = mnist(args.batch_size, pm=False)
 
     num_classes=10
+    input_size = (1, 28, 28) if args.dataset == 'mnist' else (3, 32, 32)
     # create model
-    model = L0LeNet5Param(num_classes, input_size=(1, 28, 28),
-            conv_dims=args.conv_dims, fc_dims=args.fc_dim, N=60000,
+    model = L0LeNet5Param(num_classes, input_size=input_size,
+            conv_dims=args.conv_dims, fc_dims=args.fc_dims, N=60000,
                      weight_decay=args.weight_decay,
                      lambas=args.lambas, local_rep=args.local_rep,
                      temperature=args.temp, bias=args.bias,
-                     bias_l0=args.bias_l0, droprate_init=args.droprate_init)
+                     bias_l0=args.bias_l0, droprate_init=args.droprate_init,
+                     beta_ema=args.beta_ema)
 
     param_list, name_list, noise_param_list, noise_name_list = [], [], [], []
     for name, param in model.named_parameters():
@@ -137,6 +144,7 @@ def main():
     train_acc_list = []
     valid_loss_list = []
     valid_acc_list = []
+    nonzero_list = []
     if args.resume:
         path = os.path.join(CKPT_DIR, ckpt_name)
         if os.path.exists(path):
@@ -144,7 +152,6 @@ def main():
             checkpoint = torch.load(path)
             args.start_epoch = checkpoint['epoch']
             test_acc = checkpoint['test_acc']
-            #best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             total_steps = checkpoint['total_steps']
@@ -154,9 +161,9 @@ def main():
             train_acc_list = checkpoint["train_acc_list"]
             valid_loss_list = checkpoint["valid_loss_list"]
             valid_acc_list = checkpoint["valid_acc_list"]
+            nonzero_list = checkpoint["nonzero_list"]
             print(" *** Resume: [{}] Test Acc: {:.2f}, epoch: {} ***".format(ckpt_name, checkpoint["test_acc"]*100, checkpoint["epoch"]))
             if checkpoint['beta_ema'] > 0:
-                #model.beta_ema = checkpoint['beta_ema']
                 model.avg_param = checkpoint['avg_params']
                 model.steps_ema = checkpoint['steps_ema']
         else:
@@ -175,9 +182,26 @@ def main():
             total_loss = total_loss.cuda()
         return total_loss
 
-    train_set = pMNIST(flat=False)
-    valid_set = pMNIST(flat=False)
-    test_set = pMNIST(train=False, flat=False)
+    if args.dataset.startswith("cifar"):
+        from torchvision import transforms, datasets
+        DATA_DIR = './data/cifar10'
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        n_cls = 10 if args.dataset == 'cifar10' else 100
+        dset_string = 'datasets.CIFAR10' if args.dataset == 'cifar10' else 'datasets.CIFAR100'
+        train_tfms = [transforms.ToTensor(), normalize]
+        test_set = eval(dset_string)(root=DATA_DIR, train=False,
+                                      transform=transforms.Compose(train_tfms), download=True)
+        valid_set = eval(dset_string)(root=DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+        train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
+        train_set = eval(dset_string)(root=DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+    else:
+        train_set = pMNIST(flat=False)
+        valid_set = pMNIST(flat=False)
+        test_set = pMNIST(train=False, flat=False)
+
     num_train = len(train_set)
     indices = list(range(num_train))
     valid_size = 0.25
@@ -185,7 +209,6 @@ def main():
     train_idx, valid_idx = indices[split:], indices[:split]
     train_sampler = SubsetRandomSampler(train_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
-
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
                                                sampler=train_sampler, **kwargs)
     valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
@@ -196,7 +219,12 @@ def main():
     n_epoch_wo_improvement = 0
     for epoch in range(args.start_epoch, args.epochs):
         # train for one epoch
+        before_train_randomparam = [param.data.clone() for param in noise_param_list]
         train_loss, train_acc = train(train_loader, model, loss_function, optimizer, epoch)
+        after_train_randomparam = [param.data.clone() for param in noise_param_list]
+        # random weight constant test
+        for b, a in zip(before_train_randomparam, after_train_randomparam):
+            assert torch.all(b == a)
         # evaluate on validation set
         valid_loss, valid_acc = validate(valid_loader, model, loss_function, epoch)
 
@@ -204,6 +232,11 @@ def main():
         train_acc_list.append(train_acc)
         valid_loss_list.append(valid_loss)
         valid_acc_list.append(valid_acc)
+
+        features = model.compute_params()
+        non_zero_weight, non_zero_bias = zip(*features)
+        non_zero = np.mean(non_zero_weight) + np.mean(non_zero_bias)
+        nonzero_list.append(non_zero)
 
         # remember best prec@1 and save checkpoint
         is_best = valid_acc > best_valid_acc
@@ -222,6 +255,7 @@ def main():
                 'train_acc_list': train_acc_list,
                 'valid_loss_list': valid_loss_list,
                 "valid_acc_list": valid_acc_list,
+                "nonzero_list": nonzero_list,
                 "test_acc": test_acc,
                 'optim_state_dict': optimizer.state_dict(),
                 'total_steps': total_steps,
@@ -231,11 +265,10 @@ def main():
             if model.beta_ema > 0:
                 state['avg_params'] = model.avg_param
                 state['steps_ema'] = model.steps_ema
-            save_checkpoint(state, is_best, ckpt_name)
+            save_checkpoint(state, is_best, ckpt_name, epoch + 1)
         else:
             n_epoch_wo_improvement += 1
 
-    non_zero = 0
     features = model.compute_params()
     non_zero_weight, non_zero_bias = zip(*features)
     non_zero = np.mean(non_zero_weight) + np.mean(non_zero_bias)
