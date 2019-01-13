@@ -209,6 +209,7 @@ class L0LeNet5(nn.Module):
         n_params = []
         in_channels = self.input_size[0]
         in_features = None
+        first_conv = True
         for layer in self.layers:
             sampled_z = layer.sample_z(fake_data.size(0), False).abs().sign().squeeze(0)#.sum().item()
             z_len = torch.ones_like(sampled_z).sum().item()
@@ -216,11 +217,12 @@ class L0LeNet5(nn.Module):
             z_l0.append(nonzero_groups)
             if isinstance(layer, L0Conv2d):
                 n_params.append(5 * 5 * in_channels * nonzero_groups)
-                if in_channels != self.input_size[0]:
+                if not first_conv: #in_channels != self.input_size[0]:
                     #print(self.preflat_shape)
                     #print(sampled_z.shape)
                     flatten_z = (torch.ones(*self.preflat_shape).to(sampled_z.device) * sampled_z).view(-1)
                 in_channels = nonzero_groups
+                first_conv = False
             elif isinstance(layer, L0Dense):
                 if in_features is not None:
                     n_params.append(in_features * nonzero_groups)
