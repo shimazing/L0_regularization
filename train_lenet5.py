@@ -51,6 +51,7 @@ parser.add_argument("--dataset", type=str, default="mnist", choices=["mnist",
     "cifar10", "cifar100"])
 parser.add_argument("--noise_decay", action='store_true', default=False)
 parser.add_argument("--random_noise", action='store_true', default=False)
+parser.add_argument("--decay_speed", type=float, default=2)
 parser.set_defaults(tensorboard=True)
 
 args = parser.parse_args()
@@ -113,7 +114,7 @@ def main():
     steps_per_epoch = len(train_loader)
     print(steps_per_epoch, args.batch_size)
     total_steps = steps_per_epoch * args.epochs
-    speed = 2.
+    speed = args.decay_speed
     decaying_steps = int(total_steps / speed)
     dest = 1e-10
     noise_decay_rate = np.power(dest, 1./decaying_steps) if args.noise_decay else 1
@@ -131,9 +132,9 @@ def main():
     ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
             "_{}_{:.2f}_epochs_{}").format(
         args.name, args.dataset + augment, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
-        *args.lambas, args.local_rep, args.temp, args.epochs
-    )
-    ckpt_name += "_noiseDecay_{:2f}".format(noise_decay_rate)
+        *args.lambas, args.local_rep, args.temp, args.epochs)
+    ckpt_name += "_noiseDecay_{:2f}_speed_{:2f}".format(noise_decay_rate,
+            args.decay_speed)
     if random_noise:
         ckpt_name += '_randomNoise'
     ckpt_name += '.pth.tar'
