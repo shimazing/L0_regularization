@@ -8,6 +8,7 @@ from copy import deepcopy
 import torch.nn.functional as F
 import numpy as np
 from torch.nn.parameter import Parameter
+from torch.nn import init
 
 
 class L0MLP(nn.Module):
@@ -135,17 +136,22 @@ class L0LeNet5(nn.Module):
                        lamba=lambas[4], local_rep=local_rep, temperature=temperature)]
 
         self.one2three_random = Parameter(torch.Tensor(14*14*conv_dims[0],
-            self.fc_dims[0]))
+            flat_fts), requires_grad=False)
         self.one2four_random = Parameter(torch.Tensor(14*14*conv_dims[0],
-            self.fc_dims[1]))
+            self.fc_dims[0]), requires_grad=False)
         self.one2five_random = Parameter(torch.Tensor(14*14*conv_dims[0],
-            self.fc_dims[2]))
+            self.fc_dims[1]), requires_grad=False)
         self.two2four_random = Parameter(torch.Tensor(5*5*conv_dims[1],
-            self.fc_dims[1]))
+            self.fc_dims[0]), requires_grad=False)
         self.two2five_random = Parameter(torch.Tensor(5*5*conv_dims[1],
-            self.fc_dims[2]))
+            self.fc_dims[1]), requires_grad=False)
         #self.three2five_random = Parameter(torch.Tensor(self.fc_dims[0],
         #    self.fc_dims[2]))
+        init.kaiming_normal_(self.one2three_random, mode='fan_out')
+        init.kaiming_normal_(self.one2four_random, mode='fan_out')
+        init.kaiming_normal_(self.one2five_random, mode='fan_out')
+        init.kaiming_normal_(self.two2four_random, mode='fan_out')
+        init.kaiming_normal_(self.two2five_random, mode='fan_out')
 
         self.fcs = nn.ModuleList(fcs)
 
@@ -170,11 +176,11 @@ class L0LeNet5(nn.Module):
         input_random = output = F.max_pool2d(output, 2)
         input = mask * output
 
-        ones2three = input_random.view(input_random.shape[0],
+        one2three = input_random.view(input_random.shape[0],
                 -1).mm(self.one2three_random)
-        ones2four = input_random.view(input_random.shape[0],
+        one2four = input_random.view(input_random.shape[0],
                 -1).mm(self.one2four_random)
-        ones2five = input_random.view(input_random.shape[0],
+        one2five = input_random.view(input_random.shape[0],
                 -1).mm(self.one2five_random)
         # conv 1
         output, mask = self.convs[1](input, input_random)
@@ -194,13 +200,13 @@ class L0LeNet5(nn.Module):
             input = input + one2three
         input = F.relu(input)
         # fc
-        input, input_random = self.fc_dims[0](input, input_random) # three
+        input, input_random = self.fcs[0](input, input_random) # three
         if self.training:
             input_random = input_random + one2four + two2four
-        input, input_random = self.fc_dims[1](input, input_random) # four
+        input, input_random = self.fcs[1](input, input_random) # four
         if self.training:
             input_random = input_random + two2five# + three2five
-        input, input_random = self.fc_dims[2](input, input_random) # five
+        input, input_random = self.fcs[2](input, input_random) # five
         return input + input_random
 
 
