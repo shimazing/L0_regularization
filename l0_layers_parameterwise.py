@@ -97,8 +97,10 @@ class L0DenseParam(_L0Norm):
         origin_bias = self._origin.bias * bias_mask if self._origin.bias is not None else None
         origin_output = F.linear(input, self._origin.weight * weight_mask, origin_bias)
         random_output = self.random(input)
-        return origin_output + random_output#, penalty # TODO need lambda
-
+        if self.training:
+            return origin_output + random_output#, penalty # TODO need lambda
+        else:
+            return origin_output
 
 
 class L0Conv2dParam(_L0Norm):
@@ -126,4 +128,7 @@ class L0Conv2dParam(_L0Norm):
         origin_conv = F.conv2d(input, self._origin.weight * weight_mask,origin_bias, stride=self._origin.stride,
                         padding=self._origin.padding, dilation=self._origin.dilation, groups=self._origin.groups)
         random_conv = self.random(input)
-        return origin_conv + random_conv#, penalty
+        if self.training:
+            return origin_conv + random_conv#, penalty
+        else:
+            return origin_conv

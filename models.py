@@ -207,7 +207,7 @@ class L0LeNet5(nn.Module):
             fake_data = fake_data.cuda()
         z_l0 = []
         n_params = []
-        in_channels = 1
+        in_channels = self.input_size[0]
         in_features = None
         for layer in self.layers:
             sampled_z = layer.sample_z(fake_data.size(0), False).abs().sign().squeeze(0)#.sum().item()
@@ -216,7 +216,7 @@ class L0LeNet5(nn.Module):
             z_l0.append(nonzero_groups)
             if isinstance(layer, L0Conv2d):
                 n_params.append(5 * 5 * in_channels * nonzero_groups)
-                if in_channels != 1:
+                if in_channels != self.input_size[0]:
                     #print(self.preflat_shape)
                     #print(sampled_z.shape)
                     flatten_z = (torch.ones(*self.preflat_shape).to(sampled_z.device) * sampled_z).view(-1)
