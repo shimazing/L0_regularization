@@ -7,6 +7,7 @@ from utils import get_flat_fts
 from copy import deepcopy
 import torch.nn.functional as F
 import numpy as np
+from torch.nn.parameter import Parameter
 
 
 class L0MLP(nn.Module):
@@ -93,6 +94,7 @@ class L0MLP(nn.Module):
                features.append(layer.sample_z(fake_data.size(0), False).abs().sign().sum().item())
            return features
 
+
 class L0LeNet5(nn.Module):
     def __init__(self, num_classes, input_size=(1, 28, 28), conv_dims=(20, 50), fc_dims=500,
                  N=50000, beta_ema=0., weight_decay=1, lambas=(1., 1., 1., 1.), local_rep=False,
@@ -132,6 +134,19 @@ class L0LeNet5(nn.Module):
                    L0Dense(self.fc_dims[1], num_classes, droprate_init=0.5, weight_decay=self.weight_decay,
                        lamba=lambas[4], local_rep=local_rep, temperature=temperature)]
 
+        self.one2three_random = Parameter(torch.Tensor(14*14*conv_dims[0],
+            self.fc_dims[0]))
+        self.one2four_random = Parameter(torch.Tensor(14*14*conv_dims[0],
+            self.fc_dims[1]))
+        self.one2five_random = Parameter(torch.Tensor(14*14*conv_dims[0],
+            self.fc_dims[2]))
+        self.two2four_random = Parameter(torch.Tensor(5*5*conv_dims[1],
+            self.fc_dims[1]))
+        self.two2five_random = Parameter(torch.Tensor(5*5*conv_dims[1],
+            self.fc_dims[2]))
+        self.three2five_random = Parameter(torch.Tensor(self.fc_dims[0],
+            self.fc_dims[2]))
+
         self.fcs = nn.ModuleList(fcs)
 
         self.layers = []
@@ -149,12 +164,19 @@ class L0LeNet5(nn.Module):
     def forward(self, x):
         input = x
         input_random = None
-        # conv
+        # conv 0
         output, mask = self.convs[0](input, input_random)
         output = F.relu(output)
         input_random = output = F.max_pool2d(output, 2)
         input = mask * output
 
+        ones2three = input_random.view(input_random.shape[0],
+                -1).mm(self.one2three_random)
+        ones2four = input_random.view(input_random.shape[0],
+                -1).mm(self.one2four_random)
+        ones2five = input_random.view(input_random.shape[0],
+                -1).mm(self.one2five_random)
+        # conv 1
         output, mask = self.convs[1](input, input_random)
         output = F.relu(output)
         input_random = output = F.max_pool2d(output, 2)
@@ -162,11 +184,24 @@ class L0LeNet5(nn.Module):
         input = output
         input_random = None
 
+        two2four = input.view(input.shape[0], -1).mm(self.two2four_random)
+        two2five = input.view(input.shape[0], -1).mm(self.two2five_random)
+
+        # flatten
         #input_random = input_random.view(input_random.shape[0], -1)
         input = input.view(input.shape[0], -1)
+        if self.training:
+            #input_random = input_random + one2three
+            input = input + one2three
+        input = F.relu(input)
         # fc
-        for layer in self.fcs:
-            input, input_random = layer(input, input_random)
+        input, input_random = self.fc_dims[0](input, input_random) # three
+        if self.training:
+            input_random = input_random + one2four + two2four
+        input, input_random = self.fc_dims[1](input, input_random) # four
+        if self.training:
+            input_random = input_random + two2five# + three2five
+        input, input_random = self.fc_dims[2](input, input_random) # five
         return input + input_random
 
 
