@@ -138,7 +138,10 @@ class L0Dense(Module):
         if self.use_bias:
             output.add_(self.bias)
             output_random.add_(self.bias_random)
-        return output, output_random
+        if self.training:
+            return output, output_random
+        else:
+            return output, torch.zeros_like(output_random)
 
     def __repr__(self):
         s = ('{name}({in_features} -> {out_features}, droprate_init={droprate_init}, '
@@ -296,11 +299,18 @@ class L0Conv2d(Module):
         if self.local_rep or not self.training:
             output = F.conv2d(input, self.weights, b, self.stride, self.padding, self.dilation, self.groups)
             z = self.sample_z(output.size(0), sample=self.training)
-            return output.mul(z) + random_output, z.sign()
+            if self.training:
+                return output.mul(z) + random_output, z.sign()
+            else:
+                return output.mul(z), z.sign()
         else:
             weights, mask = self.sample_weights()
             output = F.conv2d(input, weights, None, self.stride, self.padding, self.dilation, self.groups)
-            return output + random_output, mask
+            if self.training:
+                return output + random_output, mask
+            else:
+                return output, mask
+
 
     def __repr__(self):
         s = ('{name}({in_channels}, {out_channels}, kernel_size={kernel_size}, stride={stride}, '

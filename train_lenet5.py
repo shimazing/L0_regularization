@@ -7,13 +7,14 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data.sampler import SubsetRandomSampler
+from torch.nn import init
 import numpy as np
 from models import L0LeNet5
 from utils import save_checkpoint
 #from dataloaders import mnist
 from data_loader import pMNIST
 from utils import AverageMeter, accuracy
-
+import math
 
 parser = argparse.ArgumentParser(description='PyTorch LeNet5 Training')
 parser.add_argument('--epochs', default=200, type=int,
@@ -48,6 +49,8 @@ parser.add_argument("--verbose", action="store_true", default=False)
 parser.add_argument("--rand_seed", type=int, default=1)
 parser.add_argument("--dataset", type=str, default="mnist", choices=["mnist",
     "cifar10", "cifar100"])
+parser.add_argument("--noise_decay", action='store_true', default=False)
+parser.add_argument("--random_noise", action='store_true', default=False)
 parser.set_defaults(tensorboard=True)
 
 args = parser.parse_args()
@@ -71,6 +74,51 @@ def main():
     args = parser.parse_args()
     log_dir_net = args.name
     print('model:', args.name)
+    # data load
+    if args.dataset.startswith("cifar"):
+        from torchvision import transforms, datasets
+        DATA_DIR = './data/cifar10'
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        n_cls = 10 if args.dataset == 'cifar10' else 100
+        dset_string = 'datasets.CIFAR10' if args.dataset == 'cifar10' else 'datasets.CIFAR100'
+        train_tfms = [transforms.ToTensor(), normalize]
+        test_set = eval(dset_string)(root=DATA_DIR, train=False,
+                                      transform=transforms.Compose(train_tfms), download=True)
+        valid_set = eval(dset_string)(root=DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+        train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
+        train_set = eval(dset_string)(root=DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+    else:
+        train_set = pMNIST(flat=False)
+        valid_set = pMNIST(flat=False)
+        test_set = pMNIST(train=False, flat=False)
+
+    num_train = len(train_set)
+    indices = list(range(num_train))
+    valid_size = 0.25
+    split = int(np.floor(valid_size * num_train))
+    train_idx, valid_idx = indices[split:], indices[:split]
+    train_sampler = SubsetRandomSampler(train_idx)
+    valid_sampler = SubsetRandomSampler(valid_idx)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
+                                               sampler=train_sampler, **kwargs)
+    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
+                                               sampler=valid_sampler, **kwargs)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, **kwargs)
+
+    # noise decay
+    random_noise = args.random_noise
+    steps_per_epoch = len(train_loader)
+    print(steps_per_epoch, args.batch_size)
+    total_steps = steps_per_epoch * args.epochs
+    speed = 2.
+    decaying_steps = int(total_steps / speed)
+    dest = 1e-10
+    noise_decay_rate = np.power(dest, 1./decaying_steps) if args.noise_decay else 1
+    noise_decay = noise_decay_rate
+    print(steps_per_epoch, args.epochs, total_steps,noise_decay)
 
     token = args.name.split("-")
     args.conv_dims = list(map(int, token[1:3]))
@@ -81,10 +129,15 @@ def main():
 
     augment = "Aug" if args.dataset != 'mnist' else ""
     ckpt_name = ("{}_{}_{}_policy_{}_{:.2f}_noise_{:.3f}" + "_{:.2e}" * len(args.lambas) + \
-            "_{}_{:.2f}_epochs_{}.pth.tar").format(
+            "_{}_{:.2f}_epochs_{}").format(
         args.name, args.dataset + augment, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
         *args.lambas, args.local_rep, args.temp, args.epochs
     )
+    ckpt_name += "_noiseDecay_{:2f}".format(noise_decay_rate)
+    if random_noise:
+        ckpt_name += '_randomNoise'
+    ckpt_name += '.pth.tar'
+
     if args.tensorboard:
         # used for logging to TensorBoard
         from tensorboardX import SummaryWriter
@@ -173,50 +226,21 @@ def main():
             total_loss = total_loss.cuda()
         return total_loss
 
-    if args.dataset.startswith("cifar"):
-        from torchvision import transforms, datasets
-        DATA_DIR = './data/cifar10'
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
-        n_cls = 10 if args.dataset == 'cifar10' else 100
-        dset_string = 'datasets.CIFAR10' if args.dataset == 'cifar10' else 'datasets.CIFAR100'
-        train_tfms = [transforms.ToTensor(), normalize]
-        test_set = eval(dset_string)(root=DATA_DIR, train=False,
-                                      transform=transforms.Compose(train_tfms), download=True)
-        valid_set = eval(dset_string)(root=DATA_DIR, train=True,
-                                      transform=transforms.Compose(train_tfms), download=True)
-        if augment:
-            train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
-        train_set = eval(dset_string)(root=DATA_DIR, train=True,
-                                      transform=transforms.Compose(train_tfms), download=True)
-    else:
-        train_set = pMNIST(flat=False)
-        valid_set = pMNIST(flat=False)
-        test_set = pMNIST(train=False, flat=False)
-
-    num_train = len(train_set)
-    indices = list(range(num_train))
-    valid_size = 0.25
-    split = int(np.floor(valid_size * num_train))
-    train_idx, valid_idx = indices[split:], indices[:split]
-    train_sampler = SubsetRandomSampler(train_idx)
-    valid_sampler = SubsetRandomSampler(valid_idx)
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
-                                               sampler=train_sampler, **kwargs)
-    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
-                                               sampler=valid_sampler, **kwargs)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, **kwargs)
 
     best_valid_acc = -1
     n_epoch_wo_improvement = 0
     for epoch in range(args.start_epoch, args.epochs):
         # train for one epoch
-        before_train_randomparam = [param.data.clone() for param in noise_param_list]
-        train_loss, train_acc = train(train_loader, model, loss_function, optimizer, epoch)
-        after_train_randomparam = [param.data.clone() for param in noise_param_list]
+        #before_train_randomparam = [param.data.clone() for param in noise_param_list]
+        train_loss, train_acc, noise_decay = train(train_loader, model, loss_function,
+                optimizer, epoch, noise_decay_rate, list(zip(noise_name_list,
+                    noise_param_list)),
+                noise_decay, random_noise=random_noise, sparsity=args.sparsity)
+        #noise_decay *= noise_decay_rate
+        #after_train_randomparam = [param.data.clone() for param in noise_param_list]
         # random weight constant test
-        for b, a in zip(before_train_randomparam, after_train_randomparam):
-            assert torch.all(b == a)
+        #for b, a in zip(before_train_randomparam, after_train_randomparam):
+        #    assert torch.all(b == a)
         # evaluate on validation set
         valid_loss, valid_acc = validate(valid_loader, model, loss_function, epoch)
         train_loss_list.append(train_loss)
@@ -227,6 +251,7 @@ def main():
         features, architecture = model.compute_params()
         non_zero = np.sum(features)
         nonzero_list.append(non_zero)
+        #print([param.abs().mean().item() for param in noise_param_list])
 
         # remember best prec@1 and save checkpoint
         is_best = valid_acc > best_valid_acc
@@ -269,7 +294,8 @@ def main():
         writer.close()
 
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, epoch, noise_decay_rate,
+        noise_param_list, noise_decay, random_noise=False, sparsity=0):
     """Train for one epoch on the training set"""
     global total_steps, exp_flops, exp_l0, args, writer
     batch_time = AverageMeter()
@@ -283,7 +309,10 @@ def train(train_loader, model, criterion, optimizer, epoch):
     end = time.time()
     loss_part = []
     acc_part = []
+    print("Before", [param.abs().mean().item() for name, param in
+        noise_param_list])
     for i, (input_, target) in enumerate(train_loader):
+        noise_decay *= noise_decay_rate
         data_time.update(time.time() - end)
         total_steps += 1
         if torch.cuda.is_available():
@@ -329,6 +358,17 @@ def train(train_loader, model, criterion, optimizer, epoch):
         else:
             if model.module.beta_ema > 0.:
                 model.module.update_ema()
+        # decay noise
+        if random_noise and sparsity == 0:
+            [init.kaiming_normal_(param) if 'bias' not in name else
+             init.uniform_(param, - math.sqrt(1 / param.shape[0]),
+                                  math.sqrt(1 /param.shape[0])) \
+                    for name, param in noise_param_list]
+            if noise_decay_rate < 1:
+                [param.data.mul_(noise_decay) for name, param in noise_param_list]
+        else:
+            if noise_decay_rate < 1:
+                [param.data.mul_(noise_decay_rate) for name, param in noise_param_list]
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -344,13 +384,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
                 epoch, i, len(train_loader), batch_time=batch_time,
                 data_time=data_time, loss=losses, top1=top1))
 
+    print("After", [param.abs().mean().item() for name, param in noise_param_list])
+
     # log to TensorBoard
     if writer is not None:
         writer.add_scalar('train/loss', losses.avg, epoch)
         writer.add_scalar('train/acc', np.mean(acc_part), epoch)
         writer.add_scalar('train/err', top1.avg, epoch)
-
-    return np.mean(loss_part), np.mean(acc_part)
+    print(noise_decay)
+    return np.mean(loss_part), np.mean(acc_part), noise_decay
 
 
 def validate(val_loader, model, criterion, epoch):
@@ -362,14 +404,14 @@ def validate(val_loader, model, criterion, epoch):
 
     # switch to evaluate mode
     model.eval()
-    if not args.multi_gpu:
-        if model.beta_ema > 0:
-            old_params = model.get_params()
-            model.load_ema_params()
-    else:
-        if model.module.beta_ema > 0:
-            old_params = model.module.get_params()
-            model.module.load_ema_params()
+    #if not args.multi_gpu:
+    #    if model.beta_ema > 0:
+    #        old_params = model.get_params()
+    #        model.load_ema_params()
+    #else:
+    #    if model.module.beta_ema > 0:
+    #        old_params = model.module.get_params()
+    #        model.module.load_ema_params()
     end = time.time()
     loss_part = []
     acc_part = []
@@ -406,12 +448,12 @@ def validate(val_loader, model, criterion, epoch):
                     top1=top1))
     if args.verbose:
         print(' * Err@1 {top1.avg:.3f}'.format(top1=top1))
-    if not args.multi_gpu:
-        if model.beta_ema > 0:
-            model.load_params(old_params)
-    else:
-        if model.module.beta_ema > 0:
-            model.module.load_params(old_params)
+    #if not args.multi_gpu:
+    #    if model.beta_ema > 0:
+    #        model.load_params(old_params)
+    #else:
+    #    if model.module.beta_ema > 0:
+    #        model.module.load_params(old_params)
 
     # log to TensorBoard
     if writer is not None:
@@ -435,14 +477,14 @@ def test(test_loader, model, criterion, epoch):
 
     # switch to evaluate mode
     model.eval()
-    if not args.multi_gpu:
-        if model.beta_ema > 0:
-            old_params = model.get_params()
-            model.load_ema_params()
-    else:
-        if model.module.beta_ema > 0:
-            old_params = model.module.get_params()
-            model.module.load_ema_params()
+    #if not args.multi_gpu:
+    #    if model.beta_ema > 0:
+    #        old_params = model.get_params()
+    #        model.load_ema_params()
+    #else:
+    #    if model.module.beta_ema > 0:
+    #        old_params = model.module.get_params()
+    #        model.module.load_ema_params()
 
     end = time.time()
     acc_part = []
@@ -474,12 +516,12 @@ def test(test_loader, model, criterion, epoch):
 
     if args.verbose:
         print(' * Err@1 {top1.avg:.3f}'.format(top1=top1))
-    if not args.multi_gpu:
-        if model.beta_ema > 0:
-            model.load_params(old_params)
-    else:
-        if model.module.beta_ema > 0:
-            model.module.load_params(old_params)
+    #if not args.multi_gpu:
+    #    if model.beta_ema > 0:
+    #        model.load_params(old_params)
+    #else:
+    #    if model.module.beta_ema > 0:
+    #        model.module.load_params(old_params)
 
     # log to TensorBoard
     if writer is not None:
