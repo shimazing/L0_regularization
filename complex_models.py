@@ -144,8 +144,8 @@ class L0LeNet5(nn.Module):
             self.fc_dims[1]))
         self.two2five_random = Parameter(torch.Tensor(5*5*conv_dims[1],
             self.fc_dims[2]))
-        self.three2five_random = Parameter(torch.Tensor(self.fc_dims[0],
-            self.fc_dims[2]))
+        #self.three2five_random = Parameter(torch.Tensor(self.fc_dims[0],
+        #    self.fc_dims[2]))
 
         self.fcs = nn.ModuleList(fcs)
 
@@ -191,7 +191,6 @@ class L0LeNet5(nn.Module):
         #input_random = input_random.view(input_random.shape[0], -1)
         input = input.view(input.shape[0], -1)
         if self.training:
-            #input_random = input_random + one2three
             input = input + one2three
         input = F.relu(input)
         # fc
