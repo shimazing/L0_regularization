@@ -205,7 +205,7 @@ class L0LeNet5(nn.Module):
             input_random = input_random + one2four + two2four
         input, input_random = self.fcs[1](input, input_random) # four
         if self.training:
-            input_random = input_random + two2five# + three2five
+            input_random = input_random + ones2five + two2five# + three2five
         input, input_random = self.fcs[2](input, input_random) # five
         return input + input_random
 
