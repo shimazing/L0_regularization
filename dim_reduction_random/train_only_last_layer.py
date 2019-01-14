@@ -22,7 +22,8 @@ parser.add_argument('--weight-decay', '--wd', default=0.0005, type=float,
 parser.add_argument('--model', default='MLP-300-100', type=str,
                     help='name of experiment')
 parser.add_argument("--save_dir", type=str, default="ckpt")
-parser.add_argument("--policy", type=str, default="Only-Output-layer")
+parser.add_argument("--policy", type=str,
+        default="Only-Output-layer-Rank-Control")
 parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
@@ -37,7 +38,7 @@ SAVE_EPOCH = 100
 
 
 def main():
-    ckpt_name = "{}_{}_{}.pth.tar".format(args.model, args.policy, args.rand_seed)
+    ckpt_name = "{}_{}_{}_{}.pth.tar".format(args.model, args.policy, args.rank, args.rand_seed)
     np.random.seed(args.rand_seed)
     torch.manual_seed(args.rand_seed)
     if args.cuda:

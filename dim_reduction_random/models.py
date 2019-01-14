@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from gram_schmidt import gs
-
+import numpy as np
 
 class NoisyMLP(nn.Module):
     def __init__(self, input_dim, n_cls, layer_dims=(300,100), rank=None):
@@ -18,8 +18,8 @@ class NoisyMLP(nn.Module):
             layer.weight.requires_grad = False
             layer.bias.requires_grad = False
             if i == 1:
-                weight = layer.weight.t().data.numpy() # in x out
-                orthogonal = gs(X)
+                weight = layer.weight.data.numpy() # in x out
+                orthogonal = gs(weight.T)
                 orthogonal = orthogonal[:rank].T # out x rank
                 coef = np.random.uniform(-1, 1, size=(rank, inp_dim))
                 #np.matmul(orthogonal, coef) # out x in

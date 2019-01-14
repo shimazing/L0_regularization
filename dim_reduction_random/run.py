@@ -9,7 +9,7 @@ import numpy as np
 from multiprocessing import Pool
 
 def run_exp(args):
-    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_last_2nd_layer.py --model {1}
+    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_only_last_layer.py --model {1}
     --rand_seed {2} --rank {3}".format(
         args[0], args[1], args[2], args[3])
     print("[{}] {}".format(
