@@ -17,7 +17,7 @@ class NoisyMLP(nn.Module):
             layer = nn.Linear(inp_dim, dimh)
             layer.weight.requires_grad = False
             layer.bias.requires_grad = False
-            if i == 1:
+            if i == 0:
                 weight = layer.weight.data.numpy() # in x out
                 orthogonal = gs(weight.T)
                 orthogonal = orthogonal[:rank].T # out x rank

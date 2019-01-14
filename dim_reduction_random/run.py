@@ -9,8 +9,8 @@ import numpy as np
 from multiprocessing import Pool
 
 def run_exp(args):
-    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_only_last_layer.py --model {1}
-    --rand_seed {2} --rank {3}".format(
+    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_only_last_layer.py --model {1} \
+     --rand_seed {2} --rank {3}".format(
         args[0], args[1], args[2], args[3])
     print("[{}] {}".format(
         datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M:%S"),
@@ -24,7 +24,7 @@ def main():
     parser = argparse.ArgumentParser()
     #parser.add_argument("--model", type=str, required=True)
     args = parser.parse_args()
-    rank_list = [100, 80, 60, 40]
+    rank_list = [300, 150, 75]
     i = 0
     n_process = 40
     model_name_list = ["MLP-300-100"]

@@ -23,7 +23,7 @@ parser.add_argument('--model', default='MLP-300-100', type=str,
                     help='name of experiment')
 parser.add_argument("--save_dir", type=str, default="ckpt")
 parser.add_argument("--policy", type=str,
-        default="Only-Output-layer-Rank-Control")
+        default="Only-Output-layer-first-layer-Rank-Control")
 parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
@@ -151,7 +151,7 @@ def main():
             if param.requires_grad:
                 non_zero += param.abs().sign().sum().item()
         non_zero_list.append(non_zero)
-        print('[{}] Train Acc: {:.2f} Valid Acc: {:.2f}, log(Non_zero)={:.2f}'.format(ckpt_name.rstrip(".pth.tar"),
+        print('[{}/ {}] [{}] Train Acc: {:.2f} Valid Acc: {:.2f}, log(Non_zero)={:.2f}'.format(epoch, args.max_epoch, ckpt_name.rstrip(".pth.tar"),
                                                                                       train_acc * 100,
                                                                                       valid_acc*100,
                                                                                       np.log(non_zero)))
