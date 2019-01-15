@@ -9,8 +9,8 @@ tstart=time.time()
 # Arguments
 parser=argparse.ArgumentParser(description='xxx')
 parser.add_argument('--seed',type=int,default=0,help='(default=%(default)d)')
-parser.add_argument('--experiment',default='pmnist',type=str,required=False,choices=['mnist2','pmnist','cifar','mixture'],help='(default=%(default)s)')
-parser.add_argument('--approach',default='hat',type=str,required=False,choices=['random','sgd','sgd-frozen','lwf','lfl','ewc','imm-mean','progressive','pathnet',
+parser.add_argument('--experiment',default='cifar',type=str,required=False,choices=['mnist2','pmnist','cifar','mixture'],help='(default=%(default)s)')
+parser.add_argument('--approach',default='noisy-hat',type=str,required=False,choices=['random','sgd','sgd-frozen','lwf','lfl','ewc','imm-mean','progressive','pathnet',
                                                                             'imm-mode','sgd-restart',
                                                                             'joint','hat','hat-test','noisy-hat'],help='(default=%(default)s)')
 parser.add_argument('--output',default='',type=str,required=False,help='(default=%(default)s)')
@@ -23,7 +23,7 @@ if args.output=='':
     if not os.path.exists("res"):
         os.makedirs("res")
     hyperparams = "_".join(args.parameter.split(","))
-    args.output='./res/'+args.experiment+'_'+args.approach+'_'+str(args.nhid)+"_"+str(args.seed)+ "_"+ hyperparams +'.txt'
+    args.output='./res/'+args.experiment+'_'+args.approach+"_"+str(args.seed)+ "_"+ hyperparams +'.txt'
 if not os.path.exists(args.output):
     f = open(args.output, "w")
     f.close()
@@ -101,8 +101,7 @@ else:
     elif args.approach=='hat':
         from networks import alexnet_hat as network
     elif args.approach=="noisy-hat":
-        raise ValueError #, "Not Implemented"
-        from networks import noisymlp_hat as network
+        from networks import noisyalexnet_hat as network
     elif args.approach=='progressive':
         from networks import alexnet_progressive as network
     elif args.approach=='pathnet':
@@ -121,7 +120,7 @@ print('Input size =',inputsize,'\nTask info =',taskcla)
 
 # Inits
 print('Inits...')
-net=network.Net(inputsize,taskcla,nhid=args.nhid).cuda()
+net=network.Net(inputsize,taskcla).cuda()
 utils.print_model_report(net)
 
 appr=approach.Appr(net,nepochs=args.nepochs,lr=args.lr,args=args)
