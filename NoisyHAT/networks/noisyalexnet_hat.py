@@ -13,12 +13,15 @@ class Net(torch.nn.Module):
         self.taskcla=taskcla
 
         self.c1=torch.nn.Conv2d(ncha,64,kernel_size=size//8)
+        self.c1_noise=torch.nn.Conv2d(ncha,64,kernel_size=size//8)
         s=utils.compute_conv_output_size(size,size//8)
         s=s//2
         self.c2=torch.nn.Conv2d(64,128,kernel_size=size//10)
+        self.c2_noise=torch.nn.Conv2d(64,128,kernel_size=size//10)
         s=utils.compute_conv_output_size(s,size//10)
         s=s//2
         self.c3=torch.nn.Conv2d(128,256,kernel_size=2)
+        self.c3_noise=torch.nn.Conv2d(128,256,kernel_size=2)
         s=utils.compute_conv_output_size(s,2)
         s=s//2
         self.smid=s
@@ -28,10 +31,14 @@ class Net(torch.nn.Module):
         self.drop1=torch.nn.Dropout(0.2)
         self.drop2=torch.nn.Dropout(0.5)
         self.fc1=torch.nn.Linear(256*self.smid*self.smid,2048)
+        self.fc1_noise=torch.nn.Linear(256*self.smid*self.smid,2048)
         self.fc2=torch.nn.Linear(2048,2048)
-        self.last=torch.nn.ModuleList()
+        self.fc2_noise=torch.nn.Linear(2048,2048)
+        self.last = torch.nn.ModuleList()
+        self.last_noise = torch.nn.ModuleList()
         for t,n in self.taskcla:
             self.last.append(torch.nn.Linear(2048,n))
+            self.last_noise.append(torch.nn.Linear(2048,n))
 
         self.gate=torch.nn.Sigmoid()
         # All embedding stuff should start with 'e'
@@ -48,28 +55,49 @@ class Net(torch.nn.Module):
         self.efc1.weight.data.uniform_(lo,hi)
         self.efc2.weight.data.uniform_(lo,hi)
         #"""
-
-        return
+        for name, param in self.named_parameters():
+            if 'noise' in name:
+                param.requires_grad = False
 
     def forward(self,t,x,s=1):
         # Gates
         masks=self.mask(t,s=s)
         gc1,gc2,gc3,gfc1,gfc2=masks
         # Gated
-        h=self.maxpool(self.drop1(self.relu(self.c1(x))))
-        h=h*gc1.view(1,-1,1,1).expand_as(h)
-        h=self.maxpool(self.drop1(self.relu(self.c2(h))))
-        h=h*gc2.view(1,-1,1,1).expand_as(h)
-        h=self.maxpool(self.drop2(self.relu(self.c3(h))))
-        h=h*gc3.view(1,-1,1,1).expand_as(h)
-        h=h.view(x.size(0),-1)
-        h=self.drop2(self.relu(self.fc1(h)))
-        h=h*gfc1.expand_as(h)
-        h=self.drop2(self.relu(self.fc2(h)))
-        h=h*gfc2.expand_as(h)
+        gc1 = gc1.view(1, -1, 1, 1)
+        h=self.maxpool(self.drop1(self.relu(
+            self.c1(x) * gc1.sign() + self.c1_noise(x)
+        )))
+        h_origin, h_noise = h * gc1, h
+        #h=h*gc1.view(1,-1,1,1).expand_as(h)
+        gc2 = gc2.view(1, -1, 1, 1)
+        h=self.maxpool(self.drop1(self.relu(
+            self.c2(h_origin) * gc2.sign() + self.c2_noise(h_noise)
+        )))
+        h_origin, h_noise = h * gc2, h
+        #h=h*gc2.view(1,-1,1,1).expand_as(h)
+        gc3 = gc3.view(1, -1, 1, 1)
+        h=self.maxpool(self.drop2(self.relu(
+            self.c3(h_origin) * gc3.sign() + self.c3_noise(h_noise)
+        )))
+        h_origin, h_noise = h * gc3, h
+        #h=h*gc3.view(1,-1,1,1).expand_as(h)
+
+        h_origin, h_noise = h_origin.view(x.size(0),-1), h_noise.view(x.size(0), -1)
+
+        h=self.drop2(self.relu(
+            self.fc1(h_origin) * gfc1.sign() + self.fc1_noise(h_noise)
+        ))
+        h_origin, h_noise = h * gfc1, h
+        #h=h*gfc1.expand_as(h)
+        h=self.drop2(self.relu(
+            self.fc2(h_origin) * gfc2.sign() + self.fc2_noise(h_noise)
+        ))
+        h_origin, h_noise = h * gfc2, h
+        #h=h*gfc2.expand_as(h)
         y=[]
         for i,_ in self.taskcla:
-            y.append(self.last[i](h))
+            y.append(self.last[i](h_origin) + self.last_noise[i](h_noise))
         return y,masks
 
     def mask(self,t,s=1):
