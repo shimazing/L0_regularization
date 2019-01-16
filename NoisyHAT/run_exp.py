@@ -32,6 +32,8 @@ def main():
     args_list = []
     for approach in ["noisy-hat"]:
      for parameter in ["0.2,400", "0.4,400", "0.8,400","1.6,400", "3.2,400"]:
+        # lambda [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.5, 4]
+        # smax [25, 50, 100, 200, 400, 800]
       for rand_seed in rand_seed_list:
         args_list.append([i % 4, args.experiment, approach, parameter, rand_seed])
         i += 1

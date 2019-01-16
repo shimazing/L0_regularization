@@ -201,7 +201,7 @@ for t,ncla in taskcla:
            "train_acc_list": train_acc_list,
            "valid_loss_list": valid_loss_list,
            "valid_acc_list": valid_acc_list,
-           "test_acc": test_acc,
+           "test_acc": acc, #test_acc,
            "lamba": lamba,
            "smax": smax
            }
