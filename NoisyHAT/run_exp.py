@@ -27,7 +27,7 @@ args = parser.parse_args()
 
 def main():
     i = 0
-    n_process = 4
+    n_process = 8
     rand_seed_list = range(4)
     args_list = []
     for approach in ["noisy-hat"]:
@@ -36,7 +36,7 @@ def main():
         args_list.append([i % 4, args.experiment, approach, parameter, rand_seed])
         i += 1
     print("# Total training samples={}".format(len(args_list)))
-    np.random.shuffle(args_list)
+    #np.random.shuffle(args_list)
     pool = Pool(processes=n_process)
     pool.map(run_exp, args_list)
     #os.system("scp -r ckpt/ yki@143.248.57.168:/home/yki/Documents/continual-learning/experiment/NoisyHAT/")
