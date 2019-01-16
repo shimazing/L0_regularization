@@ -20,8 +20,8 @@ def run_exp(args):
     os.system(cmd)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--parameter", type=str, required=True)
-parser.add_argument("--approach", type=str, choices=["hat","noisy-hat"])
+#parser.add_argument("--parameter", type=str, required=True)
+#parser.add_argument("--approach", type=str, choices=["hat","noisy-hat"])
 parser.add_argument("--experiment", type=str, default="cifar")
 args = parser.parse_args()
 
@@ -30,8 +30,10 @@ def main():
     n_process = 4
     rand_seed_list = range(4)
     args_list = []
-    for rand_seed in rand_seed_list:
-        args_list.append([i % 4, args.experiment, args.approach, args.parameter, rand_seed])
+    for approach in ["noisy-hat"]:
+     for parameter in ["0.2,400", "0.4,400", "0.8,400","1.6,400", "3.2,400"]:
+      for rand_seed in rand_seed_list:
+        args_list.append([i % 4, args.experiment, approach, parameter, rand_seed])
         i += 1
     print("# Total training samples={}".format(len(args_list)))
     np.random.shuffle(args_list)
