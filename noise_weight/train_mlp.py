@@ -271,6 +271,9 @@ def validate(val_loader, model, criterion=None):
     model.eval()
     loss_part = []
     acc_part = []
+
+    scores = []
+    targets = []
     with torch.no_grad():
         for i, (input_, target) in enumerate(val_loader):
             if torch.cuda.is_available():
@@ -278,6 +281,9 @@ def validate(val_loader, model, criterion=None):
                 input_ = input_.cuda()
             # compute output
             output = model(input_)
+            pred_prob = output.cpu().softmax(dim=1).data.numpy()
+            scores.append(pred_prob)
+            targets.append(target.cpu().data.numpy())
             preds = output.max(dim=1)[1]
             if criterion is not None:
                 loss = criterion(output, target)
@@ -287,7 +293,20 @@ def validate(val_loader, model, criterion=None):
                 loss_part.append(0)
             acc = (preds == target).sum().item() / preds.size(0)
             acc_part.append(acc)
-    return np.mean(loss_part), np.mean(acc_part)
+        scores = np.concatenate(scores, axis=0)
+        targets = np.concatenate(targets)
+        targets = np.eye(7)[targets.astype(int)]
+
+        #print(targets[:10])
+        #print(scores[:10])
+        from sklearn.metrics import roc_auc_score
+
+        binary  = []
+        for i in range(targets.shape[1]):
+            if len(np.unique(targets[:, i])) == 2:
+                binary.append(i)
+        auc = roc_auc_score(targets[:, binary], scores[:, binary], 'macro')
+    return np.mean(loss_part), auc # np.mean(acc_part)
 
 def save_checkpoint(state, directory, name, filename='checkpoint.pth.tar'):
     """Saves checkpoint to disk"""

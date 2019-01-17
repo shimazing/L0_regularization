@@ -116,6 +116,9 @@ class WhiteWine(Dataset):
         y = data['quality'].values - 3
         del data["quality"]
         X = data.values.astype(np.float)
+        from sklearn.preprocessing import StandardScaler
+        m = StandardScaler()
+        X = m.fit_transform(X)
 
         train_X, test_X, train_y, test_y = train_test_split(X, y,
                 test_size=test_ratio, random_state=seed)

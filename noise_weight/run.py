@@ -39,7 +39,7 @@ def main(nlayer):
     model_name_list = gen_model_name_list(nhid_list, nlayer)
     print(model_name_list)
     #return
-    rand_seed_list = range(2)
+    rand_seed_list = range(5)
     act_fn = "relu"
     noise_layer_list = [-1,0,1]
     args_list = []

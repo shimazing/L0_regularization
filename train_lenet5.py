@@ -133,7 +133,8 @@ def main():
             "_{}_{:.2f}_epochs_{}").format(
         args.name, args.dataset + augment, args.policy, args.rand_seed, args.sparsity, args.beta_ema,
         *args.lambas, args.local_rep, args.temp, args.epochs)
-    ckpt_name += "_noiseDecay_{:2f}_speed_{:2f}".format(noise_decay_rate,
+    if noise_decay < 1:
+        ckpt_name += "_noiseDecay_{:2f}_speed_{:2f}".format(noise_decay_rate,
             args.decay_speed)
     if random_noise:
         ckpt_name += '_randomNoise'

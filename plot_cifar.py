@@ -4,7 +4,8 @@ import torch
 import matplotlib
 #matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from models import L0MLP
+from models import L0MLP, L0LeNet5
+from utils import AverageMeter, accuracy
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -16,23 +17,68 @@ args = parser.parse_args()
 CKPT_DIR = "runs"
 POLICY = "L0_neuron"
 
+def test(test_loader, model, epoch):
+    """Perform validation on the validation set"""
+    losses = AverageMeter()
+    top1 = AverageMeter()
+
+    # switch to evaluate mode
+    model.eval()
+    if model.beta_ema > 0:
+        old_params = model.get_params()
+        model.load_ema_params()
+    model.zero_out_pruned_param()
+
+    acc_part = []
+    with torch.no_grad():
+        for i, (input_, target) in enumerate(test_loader):
+            if torch.cuda.is_available():
+                target = target.cuda(async=True)
+                input_ = input_.cuda()
+            # compute output
+            output = model(input_)
+            preds = output.max(dim=1)[1]
+
+            # measure accuracy and record loss
+            # prec1 = accuracy(output.item(), target, topk=(1,))[0]
+            prec1 = (preds == target).sum().item() / preds.size(0)
+            top1.update(100 - prec1*100, input_.size(0))
+            acc_part.append(prec1)
+
+    if model.beta_ema > 0:
+        model.load_params(old_params)
+
+    return np.mean(acc_part)
+
 def main():
     model_name_list = ["L0LeNet5-6-16-120-84", "L0LeNet5-12-32-200-100",
             "L0LeNet5-24-64-400-200"]
     #model_name_list = ["L0LeNet5-20-50-500", "L0LeNet5-40-75-1000", "L0LeNet-60-100-1500"]
     lambda_list =  [0.01, 0.1, 0.2, 0.4, 0.6, 0.8] #list(np.arange(0.1, 0.15, 0.01)) + list(np.arange(0.15, 0.2, 0.01))+ list(np.arange(0.3, 0.4, 0.02))
-    summary_best(model_name_list, lambda_list)
+    #summary_best(model_name_list, lambda_list)
     summary_last_epoch(model_name_list, lambda_list)
 
 def summary_last_epoch(model_name_list, coef_list):
     # coef_list = [0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 1.5]
     # model_name_list = ["MLP-300-100", "MLP-500-300", "MLP-1000-500", "MLP-2000-1000"]
-    rand_seed_list = range(4)
+    rand_seed_list = range(8)
     sparsity_list = [0.0, 1.0]
     test_acc_dict = {}
     test_acc_avg_dict = {}
     non_zeros_dict = {}
     non_zeros_avg_dict = {}
+
+    from torchvision import transforms, datasets
+    DATA_DIR = './data/cifar10'
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    n_cls = 10
+    dset_string = 'datasets.CIFAR10'
+    train_tfms = [transforms.ToTensor(), normalize]
+    test_set = eval(dset_string)(root=DATA_DIR, train=False,
+                                  transform=transforms.Compose(train_tfms), download=True)
+    kwargs = {'num_workers': 1, 'pin_memory': True}
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=100, shuffle=False, **kwargs)
 
     for model_name in model_name_list:
         for sparsity in sparsity_list:
@@ -59,9 +105,25 @@ def summary_last_epoch(model_name_list, coef_list):
                     else:
                         print(" *** Missing {}".format(ckpt_name))
                         continue
-                    features = ckpt["pruned_model"]
+                    try:
+                        features, architecture = ckpt["pruned_model"]
+                        print("Newly runned", ckpt_name)
+                    except:
+                        print("Save wrong nonzero", ckpt_name)
+                        continue
+
+                    token = ckpt["model"].split("-")
+                    conv_dims = list(map(int, token[1:3]))
+                    fc_dims = list(map(int, token[3:]))
+
+                    model = L0LeNet5(10, input_size=(3, 32, 32),
+                            conv_dims=conv_dims, fc_dims=fc_dims, N=60000,
+                            weight_decay=5e-4, lambas=[coef]*5, local_rep=False,
+                                     temperature=2./3., beta_ema=0.)
+                    model.cuda()
+                    model.load_state_dict(ckpt["model_state_dict"])
                     non_zero = np.sum(features)
-                    test_acc = ckpt["test_acc"]
+                    test_acc = test(test_loader, model, ckpt['epoch'])# ckpt["test_acc"]
 
                     acc_part.append(test_acc)
                     non_zeros_part.append(non_zero)
@@ -146,7 +208,7 @@ def summary_last_epoch(model_name_list, coef_list):
 def summary_best(model_name_list, coef_list):
     #coef_list = [0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 1.5]
     # model_name_list = ["MLP-500-300", "MLP-300-100", "MLP-1000-500"]
-    rand_seed_list = range(3)
+    rand_seed_list = range(4)
     sparsity_list = [0.0, 1.0]
     test_acc_dict = {}
     test_acc_avg_dict = {}
@@ -179,9 +241,17 @@ def summary_best(model_name_list, coef_list):
                     else:
                         print(" *** Missing {}".format(ckpt_name))
                         continue
-                    features = ckpt["pruned_model"]
+                    try:
+                        features, architecture = ckpt["pruned_model"]
+                        print("Newly runned", ckpt_name)
+                    except:
+                        print("Saved wrong nonzero", ckpt_name)
+                        continue
                     non_zero = np.sum(features)
                     test_acc = ckpt["test_acc"]
+                    #features = ckpt["pruned_model"]
+                    #non_zero = np.sum(features)
+                    #test_acc = ckpt["test_acc"]
 
                     acc_part.append(test_acc)
                     non_zeros_part.append(non_zero)

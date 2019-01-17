@@ -19,7 +19,7 @@ POLICY = "L0_neuron"
 def main():
     model_name_list = ["L0LeNet5-20-50-500", "L0LeNet5-40-75-1000", "L0LeNet-60-100-1500"]
     lambda_list =  [0.001, 0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2] #list(np.arange(0.1, 0.15, 0.01)) + list(np.arange(0.15, 0.2, 0.01))+ list(np.arange(0.3, 0.4, 0.02))
-    summary_best(model_name_list, lambda_list)
+    #summary_best(model_name_list, lambda_list)
     summary_last_epoch(model_name_list, lambda_list)
 
 def summary_last_epoch(model_name_list, coef_list):

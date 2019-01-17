@@ -30,19 +30,21 @@ def main():
     n_process = 8
     rand_seed_list = range(4)
     args_list = []
-    for approach in ["noisy-hat"]:
-     for lambda_ in  [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.5, 4]:
-      for smax [25, 50, 100, 200, 400, 800]:
+    for approach in ["hat"]:
+     for lambda_ in  [2.5, 4, 0.1, 0.25, 0.5, 0.75, 1, 1.5]:
+      for smax in [25, 50, 100, 200, 400, 800]:
        parameter = "{},{}".format(lambda_, smax)
       #for parameter in ["0.2,400", "0.4,400", "0.8,400","1.6,400", "3.2,400"]:
        for rand_seed in rand_seed_list:
         args_list.append([i % 4, args.experiment, approach, parameter, rand_seed])
         i += 1
-    print("# Total training samples={}".format(len(args_list)))
-    #np.random.shuffle(args_list)
-    pool = Pool(processes=n_process)
-    pool.map(run_exp, args_list)
-    #os.system("scp -r ckpt/ yki@143.248.57.168:/home/yki/Documents/continual-learning/experiment/NoisyHAT/")
-    #os.system("scp -r res/ yki@143.248.57.168:/home/yki/Documents/continual-learning/experiment/NoisyHAT/")
+        if len(args_list) == 8:
+            print("# Total training samples={}".format(len(args_list)))
+            #np.random.shuffle(args_list)
+            pool = Pool(processes=n_process)
+            pool.map(run_exp, args_list)
+            args_list = []
+            #os.system("scp -r ckpt/ yki@143.248.57.168:/home/yki/Documents/continual-learning/experiment/NoisyHAT/")
+            #os.system("scp -r res/ yki@143.248.57.168:/home/yki/Documents/continual-learning/experiment/NoisyHAT/")
 
 main()
