@@ -9,7 +9,7 @@ import numpy as np
 from multiprocessing import Pool
 
 def run_exp(args):
-    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_mlp.py --model {1} --rand_seed {2} --act_fn {3} --noise_layer {4}".format(
+    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_mlp.py --dataset wine --model {1} --rand_seed {2} --act_fn {3} --noise_layer {4}".format(
         args[0], args[1], args[2], args[3], args[4])
     print("[{}] {}".format(
         datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M:%S"),
@@ -35,7 +35,7 @@ def main(nlayer):
     #model_name_list = ["MLP-50-30", "MLP-100-50", "MLP-300-100", "MLP-500-300", "MLP-1000-500", "MLP-2000-1000"]
     #model_name_list = ["MLP-3000-2000", "MLP-4000-3000", "MLP-5000-4000", "MLP-6000-5000", "MLP-7000-6000", "MLP-8000-7000", "MLP-9000-8000", "MLP-10000-9000", "MLP-10000-10000"]
     #model_name_list = ["MLP-100-100-100", "MLP-200-200-200", "MLP-500-500-500", "MLP-1000-1000-1000", "MLP-2000", "MLP-5000","MLP-10000", "MLP-20000"]
-    nhid_list = [100, 500, 1000]
+    nhid_list = [100, 300, 500, 1000]
     model_name_list = gen_model_name_list(nhid_list, nlayer)
     print(model_name_list)
     #return
@@ -54,7 +54,7 @@ def main(nlayer):
     pool = Pool(processes=n_process)
     pool.map(run_exp, args_list)
 
-
+main(2)
 main(3)
 main(4)
 os.system("scp -r ckpt/ mazing@server03.mli.kr:/home/mazing/L0_regularization/noise_weight/ckpt/")

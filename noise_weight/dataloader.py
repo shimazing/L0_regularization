@@ -67,6 +67,7 @@ class Abalone(Dataset):
 
         train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=test_ratio)
         if train:
+            self.weight = torch.from_numpy(1. / np.unique(train_y, return_counts=True)[1].astype(float))
             self.X = torch.from_numpy(train_X).float()
             self.y = torch.from_numpy(train_y).long()
         else:
@@ -92,6 +93,8 @@ class RedWine(Dataset):
         train_X, test_X, train_y, test_y = train_test_split(X, y,
                 test_size=test_ratio, random_state=seed)
         if train:
+            self.weight = torch.from_numpy(1. / np.unique(train_y,
+                return_counts=True)[1].astype(float))
             self.X = torch.from_numpy(train_X).float()
             self.y = torch.from_numpy(train_y).long()
         else:
@@ -110,14 +113,16 @@ class WhiteWine(Dataset):
         data = pd.read_csv("../data/winequality-white.csv", sep=';')
         print("Number of samples: %d" % len(data))
         print(data.head())
-        y = data['quality'].values
+        y = data['quality'].values - 3
         del data["quality"]
         X = data.values.astype(np.float)
 
         train_X, test_X, train_y, test_y = train_test_split(X, y,
                 test_size=test_ratio, random_state=seed)
         if train:
-            np.unique(train_y, return_counts=True)
+            self.weight = torch.from_numpy(1. / np.unique(train_y,
+                return_counts=True)[1].astype(float))
+            print(np.unique(test_y, return_counts=True))
             self.X = torch.from_numpy(train_X).float()
             self.y = torch.from_numpy(train_y).long()
         else:

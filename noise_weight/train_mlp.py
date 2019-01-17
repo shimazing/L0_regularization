@@ -56,7 +56,9 @@ def main():
         #assert np.all(train_set[1][0] == valid_set[1][0])
         test_set = WhiteWine(args.rand_seed, train=False, test_ratio=0.3)
         input_dim = train_set.X.shape[1]
-        n_cls = 11
+        print(train_set.weight)
+        input()
+        n_cls = 7
     elif args.dataset == 'abalone':
         from dataloader import Abalone
         train_set = Abalone(args.rand_seed, train=True, test_ratio=0.3)
@@ -154,7 +156,7 @@ def main():
         non_zero_list = []
         best_valid_acc = -1
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()#weight=train_set.weight.float().cuda())
     if torch.cuda.is_available():
         criterion = criterion.cuda()
 
