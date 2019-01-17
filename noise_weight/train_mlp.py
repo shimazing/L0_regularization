@@ -163,9 +163,10 @@ def main():
     n_epoch_wo_improvement = 0
     for epoch in range(start_epoch, args.max_epoch):
         # train for one epoch
-        train_loss, train_acc = train(train_loader, model, criterion, optimizer)
+        train_loss, train_acc = train(train_loader, model, criterion, optimizer,
+                n_cls)
         # evaluate on validation set
-        valid_loss, valid_acc = validate(valid_loader, model, criterion)
+        valid_loss, valid_acc = validate(valid_loader, model, n_cls, criterion)
         train_loss_list.append(train_loss)
         train_acc_list.append(train_acc)
         valid_loss_list.append(valid_loss)
@@ -183,7 +184,7 @@ def main():
         best_valid_acc = max(valid_acc, best_valid_acc)
         if is_best:
             n_epoch_wo_improvement = 0
-            _, test_acc = validate(test_loader, model)
+            _, test_acc = validate(test_loader, model, n_cls)
             state = {
                 "model": args.model,
                 "act_fn": args.act_fn,
@@ -203,7 +204,7 @@ def main():
             n_epoch_wo_improvement += 1
 
         if epoch > 0 and epoch % SAVE_EPOCH == 0:
-            _, test_acc = validate(test_loader, model)
+            _, test_acc = validate(test_loader, model, n_cls)
             state = {
                 "model": args.model,
                 "act_fn": args.act_fn,
@@ -221,7 +222,7 @@ def main():
             save_checkpoint(state, args.save_dir, "{}epoch_".format(epoch)+ckpt_name)
         if n_epoch_wo_improvement > EARLY_STOPPING_CRITERION :
             break
-    _, test_acc = validate(test_loader, model)
+    _, test_acc = validate(test_loader, model, n_cls)
     state = {
         "model": args.model,
         "act_fn": args.act_fn,
@@ -239,12 +240,14 @@ def main():
     save_checkpoint(state, args.save_dir, ckpt_name)
     print('[{}] Test Accuracy: {:.2f}, log(Non_zero)={:.2f}'.format(ckpt_name, test_acc * 100, np.log(non_zero)))
 
-def train(train_loader, model, criterion, optimizer):
+def train(train_loader, model, criterion, optimizer, n_cls, metric='auc'):
     """Train for one epoch on the training set"""
     # switch to train mode
     model.train()
     loss_part = []
     acc_part = []
+    scores = []
+    targets = []
     for i, (input_, target) in enumerate(train_loader):
         if torch.cuda.is_available():
             target = target.cuda(async=True)
@@ -252,6 +255,9 @@ def train(train_loader, model, criterion, optimizer):
 
         # compute output
         output = model(input_)
+        pred_prob = output.cpu().softmax(dim=1).data.numpy()
+        scores.append(pred_prob)
+        targets.append(target.cpu().data.numpy())
         preds = output.max(dim=1)[1]
         loss = criterion(output, target)
         # compute gradient and do SGD step
@@ -263,9 +269,23 @@ def train(train_loader, model, criterion, optimizer):
         acc = (preds == target).sum().item() / preds.size(0)
         loss_part.append(loss.item())
         acc_part.append(acc)
-    return np.mean(loss_part), np.mean(acc_part)
+    scores = np.concatenate(scores, axis=0)
+    targets = np.concatenate(targets)
+    targets = np.eye(n_cls)[targets.astype(int)]
 
-def validate(val_loader, model, criterion=None):
+    from sklearn.metrics import roc_auc_score
+
+    binary  = []
+    for i in range(targets.shape[1]):
+        if len(np.unique(targets[:, i])) == 2:
+            binary.append(i)
+    auc = roc_auc_score(targets[:, binary], scores[:, binary], 'macro')
+    if metric == 'acc':
+        return np.mean(loss_part), np.mean(acc_part)
+    elif metric == 'auc':
+        return np.mean(loss_part), auc# np.mean(acc_part)
+
+def validate(val_loader, model, n_cls, criterion=None, metric='auc'):
     """Perform validation on the validation set"""
     # switch to evaluate mode
     model.eval()
@@ -295,10 +315,8 @@ def validate(val_loader, model, criterion=None):
             acc_part.append(acc)
         scores = np.concatenate(scores, axis=0)
         targets = np.concatenate(targets)
-        targets = np.eye(7)[targets.astype(int)]
+        targets = np.eye(n_cls)[targets.astype(int)]
 
-        #print(targets[:10])
-        #print(scores[:10])
         from sklearn.metrics import roc_auc_score
 
         binary  = []
@@ -306,7 +324,10 @@ def validate(val_loader, model, criterion=None):
             if len(np.unique(targets[:, i])) == 2:
                 binary.append(i)
         auc = roc_auc_score(targets[:, binary], scores[:, binary], 'macro')
-    return np.mean(loss_part), auc # np.mean(acc_part)
+    if metric == 'acc':
+        return np.mean(loss_part), np.mean(acc_part)
+    elif metric == 'auc':
+        return np.mean(loss_part), auc # np.mean(acc_part)
 
 def save_checkpoint(state, directory, name, filename='checkpoint.pth.tar'):
     """Saves checkpoint to disk"""

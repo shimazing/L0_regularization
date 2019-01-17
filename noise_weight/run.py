@@ -9,7 +9,8 @@ import numpy as np
 from multiprocessing import Pool
 
 def run_exp(args):
-    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_mlp.py --dataset wine --model {1} --rand_seed {2} --act_fn {3} --noise_layer {4}".format(
+    cmd = "CUDA_VISIBLE_DEVICES={0} python3 train_mlp.py --dataset wine \
+            --model {1} --rand_seed {2} --act_fn {3} --noise_layer {4} --max_epoch 200".format(
         args[0], args[1], args[2], args[3], args[4])
     print("[{}] {}".format(
         datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M:%S"),

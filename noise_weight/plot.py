@@ -4,7 +4,7 @@ import torch
 import os
 
 POLICY = "NoisyMLP"
-SEED_MAX = 2
+SEED_MAX = 5
 MARKER_SIZE = 30
 def main():
     nhid_list = [100, 300, 500, 1000]
