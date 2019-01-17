@@ -57,7 +57,7 @@ def main():
         test_set = WhiteWine(args.rand_seed, train=False, test_ratio=0.3)
         input_dim = train_set.X.shape[1]
         print(train_set.weight)
-        input()
+        #input()
         n_cls = 7
     elif args.dataset == 'abalone':
         from dataloader import Abalone

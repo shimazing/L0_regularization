@@ -17,7 +17,7 @@ def run_exp(args):
         ))
     time_.sleep(0.1)
     #subprocess.run(cmd.split(" "), check=True, stdout=subprocess.PIPE)
-    #os.system(cmd)
+    os.system(cmd)
 
 def gen_model_name_list(nhid_list, n_layer):
     model_name_list = []
@@ -57,4 +57,4 @@ def main(nlayer):
 main(2)
 main(3)
 main(4)
-os.system("scp -r ckpt/ mazing@server03.mli.kr:/home/mazing/L0_regularization/noise_weight/ckpt/")
+#os.system("scp -r ckpt/ mazing@server03.mli.kr:/home/mazing/L0_regularization/noise_weight/ckpt/")
