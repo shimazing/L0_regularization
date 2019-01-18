@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data.sampler import SubsetRandomSampler
-
+import time
 from models_yki import AlternatingNoisyMLP, IncomingNoisyMLP
 from torchvision import datasets, transforms
 import copy
@@ -29,6 +29,7 @@ parser.add_argument("--noise_layer", type=int, required=True, help="-1 means tra
 parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
+parser.add_argument("--augment", action="store_true", default=False)
 parser.add_argument("--dataset", type=str, required=True,
                     choices=["letter", "dna", "satimage", "ijcnn1", "cifar10", "cifar100", "mnist",
                              "whitewine", "redwine", "abalone"])
@@ -44,6 +45,8 @@ SAVE_EPOCH = 100
 def main():
     ckpt_name = "{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.model, args.policy,
                                                    args.noise_layer, args.act_fn, args.rand_seed)
+    if args.augment:
+        ckpt_name = 'augment_' + ckpt_name
     np.random.seed(args.rand_seed)
     torch.manual_seed(args.rand_seed)
     if args.cuda:
@@ -107,7 +110,9 @@ def main():
                                       download=True)
         test_set = eval(dset_string)(root='../data', train=False, transform=transforms.Compose(train_tfms),
                                      download=True)
-        train_tfms += [transforms.RandomHorizontalFlip()] + train_tfms
+        if args.augment:
+            train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
+        #train_tfms += [transforms.RandomHorizontalFlip()] + train_tfms
         train_set = eval(dset_string)(root='../data', train=True, transform=transforms.Compose(train_tfms),
                                       download=True)
     elif args.dataset == "redwine":
@@ -246,7 +251,8 @@ def main():
     n_epoch_wo_improvement = 0
     for epoch in range(start_epoch, args.max_epoch):
         # train for one epoch
-        train_loss, train_acc, train_auc = train(train_loader, n_cls, model, criterion, optimizer)
+        train_loss, train_acc, train_auc, forward_time, backward_time, optim_time = \
+                train(train_loader, n_cls, model, criterion, optimizer)
         # evaluate on validation set
         valid_loss, valid_acc, valid_auc = validate(valid_loader, n_cls, model, criterion)
         train_loss_list.append(train_loss)
@@ -287,7 +293,10 @@ def main():
                 "valid_auc_list": valid_auc_list,
                 "test_acc": test_acc,
                 "test_auc": test_auc,
-                'optim_state_dict': optimizer.state_dict()
+                'optim_state_dict': optimizer.state_dict(),
+                'forward_time': forward_time,
+                'backward_time': backward_time,
+                'optim_time': optim_time
             }
             save_checkpoint(state, args.save_dir, "best_" + ckpt_name)
         else:
@@ -310,7 +319,10 @@ def main():
                 "valid_acc_list": valid_acc_list,
                 "valid_auc_list": valid_auc_list,
                 "test_acc": test_acc,
-                'optim_state_dict': optimizer.state_dict()
+                'optim_state_dict': optimizer.state_dict(),
+                'forward_time': forward_time,
+                'backward_time': backward_time,
+                'optim_time': optim_time
             }
             save_checkpoint(state, args.save_dir, "{}epoch_".format(epoch)+ckpt_name)
         if n_epoch_wo_improvement > EARLY_STOPPING_CRITERION :
@@ -332,7 +344,10 @@ def main():
         "valid_auc_list": valid_auc_list,
         "test_acc": test_acc,
         "test_auc": test_auc,
-        'optim_state_dict': optimizer.state_dict()
+        'optim_state_dict': optimizer.state_dict(),
+        'forward_time': forward_time,
+        'backward_time': backward_time,
+        'optim_time': optim_time
     }
     save_checkpoint(state, args.save_dir, ckpt_name)
     print('[{}] Test Accuracy: {:.2f}, Test Auc: {:.4f}, log(Non_zero)={:.2f}'.format(
@@ -346,23 +361,31 @@ def train(train_loader, n_cls, model, criterion, optimizer):
     acc_part = []
     scores = []
     targets = []
+    forward_time = 0
+    backward_time = 0
+    optim_time = 0
     for i, (input_, target) in enumerate(train_loader):
         if torch.cuda.is_available():
             target = target.cuda(async=True)
             input_ = input_.cuda()
 
         # compute output
+        forward_start = time.time()
         output = model(input_)
+        loss = criterion(output, target)
+        forward_time += (time.time()-forward_start)
         preds = output.max(dim=1)[1]
         preds_prob = output.softmax(dim=1).cpu().data.numpy()
         scores.append(preds_prob)
         targets.append(target.cpu().data.numpy())
-        loss = criterion(output, target)
-
         # compute gradient and do SGD step
         optimizer.zero_grad()
+        backward_start = time.time()
         loss.backward()
+        backward_time += (time.time()-backward_start)
+        optim_start = time.time()
         optimizer.step()
+        optim_time += (time.time()-optim_start)
 
         # measure accuracy and record loss
         acc = (preds == target).sum().item() / preds.size(0)
@@ -377,7 +400,8 @@ def train(train_loader, n_cls, model, criterion, optimizer):
         if len(np.unique(targets[:, i])) == 2:
             binary.append(i)
     auc = roc_auc_score(targets[:,binary], scores[:, binary], 'macro')
-    return np.mean(loss_part), np.mean(acc_part), auc
+    return np.mean(loss_part), np.mean(acc_part), auc, \
+        forward_time, backward_time, optim_time
 
 def validate(val_loader, n_cls, model, criterion=None):
     """Perform validation on the validation set"""

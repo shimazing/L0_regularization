@@ -16,8 +16,8 @@ SEED_MAX = 5
 MARKER_SIZE = 80
 
 def main():
-    nhid_list = [10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000]
-    for n_layer in [2, 3, 4]:
+    nhid_list = [100]#[10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000]
+    for n_layer in range(2, 10):
         learning_result(nhid_list, n_layer)
         best_n_layer_mlp(nhid_list, n_layer)
         epoch_n_layer_mlp(nhid_list, n_layer)
@@ -139,13 +139,12 @@ def epoch_n_layer_mlp(nhid_list, n_layer, epoch="last"):
     ax.set_ylabel("Test Auc")
     ax.set_xlabel("log(num params)")
     ax.set_title("[{}] {}-layered-MLPs at {} epoch".format(args.dataset, n_layer, epoch))
-    plt.show()
     plt.savefig("{}_{}epoch_{}-layered-MLPs.png".format(args.dataset, epoch, n_layer))
     plt.show()
     plt.close()
 
 
-def learning_result(nhid_list, n_layer):
+def learning_result(nhid_list):#, n_layer):
     CKPT_DIR = "ckpt"
     # nhid_list = [100, 500, 1000]
     # n_layer = 3

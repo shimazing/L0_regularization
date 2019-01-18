@@ -10,6 +10,7 @@ import argparse
 import os
 import numpy as np
 from dataloader import *
+from vggs import vgg16_with_noise
 
 parser = argparse.ArgumentParser(description='NoisyNet MLP-300-300 Training')
 parser.add_argument('--max_epoch', default=100, type=int,
@@ -25,13 +26,15 @@ parser.add_argument('--weight-decay', '--wd', default=0.0005, type=float,
 #                    help='name of experiment')
 parser.add_argument("--save_dir", type=str, default="ckpt")
 parser.add_argument("--policy", type=str, required=True,
-        choices=["AlternatingNoisyCNN", "IncomingNoisyCNN"])
+        choices=["AlternatingNoisyCNN", "IncomingNoisyCNN", "NoisyVgg16"])
 parser.add_argument("--noise_layer", type=int, required=True, help="-1 means training whole networks")
 parser.add_argument("--n_conv", type=int, default=2)
 parser.add_argument("--conv_dim", type=int, default=10)
+parser.add_argument("--hdim", type=int, default=4096, choices=[4096, 2048, 1024, 512])
 parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
+parser.add_argument("--augment", action="store_true", default=False)
 parser.add_argument("--dataset", type=str, required=True,
                     choices=["cifar10", "cifar100",])# "mnist",
                              #"whitewine", "redwine", "abalone"])
@@ -45,9 +48,15 @@ SAVE_EPOCH = 100
 
 
 def main():
+    if args.policy == "NoisyVgg16":
+        args.n_conv = 'na'
+        args.conv_dim = 'na'
+        args.policy += "-{}".format(args.hdim)
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
                                                    args.noise_layer, args.act_fn, args.rand_seed)
+    if args.augment:
+        ckpt_name = 'augment_' + ckpt_name
     np.random.seed(args.rand_seed)
     torch.manual_seed(args.rand_seed)
     if args.cuda:
@@ -111,7 +120,8 @@ def main():
                                       download=True)
         test_set = eval(dset_string)(root='../data', train=False, transform=transforms.Compose(train_tfms),
                                      download=True)
-        #train_tfms += [transforms.RandomHorizontalFlip()] + train_tfms
+        if args.augment:
+            train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
         train_set = eval(dset_string)(root='../data', train=True, transform=transforms.Compose(train_tfms),
                                       download=True)
     elif args.dataset == "redwine":
@@ -176,6 +186,9 @@ def main():
         model = IncomingNoisyCNN(input_dim=(3, 32, 32), n_cls=n_cls,
                 n_conv=args.n_conv, conv_dim=args.conv_dim, fc_layer_dims=[],
                 activation_fn=args.act_fn, noise_layer=args.noise_layer)
+    elif args.policy.startswith("NoisyVgg16"):
+        model = vgg16_with_noise(args.noise_layer, bn=False, num_classes=n_cls,
+                hdim=args.hdim)
     else:
         raise ValueError
     #
@@ -344,6 +357,7 @@ def main():
     print('[{}] Test Accuracy: {:.2f}, Test Auc: {:.4f}, log(Non_zero)={:.2f}'.format(
         ckpt_name, test_acc*100, test_auc, np.log(non_zero)))
 
+
 def train(train_loader, n_cls, model, criterion, optimizer):
     """Train for one epoch on the training set"""
     # switch to train mode
@@ -356,7 +370,6 @@ def train(train_loader, n_cls, model, criterion, optimizer):
         if torch.cuda.is_available():
             target = target.cuda(async=True)
             input_ = input_.cuda()
-
         # compute output
         output = model(input_)
         preds = output.max(dim=1)[1]
