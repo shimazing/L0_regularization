@@ -36,7 +36,7 @@ def main():
     i = 0
     n_process = 16
     n_conv_list = [2, 3, 4]
-    conv_dim_list = [10, 20, 40]
+    conv_dim_list = [5, 10, 20]#, 40]
     rand_seed_list = range(2)
     act_fn = "relu"
     noise_layer_list = [-1,0,1]

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 class Flatten(nn.Module):
     def forward(self, x):
@@ -64,14 +65,14 @@ class AlternatingNoisyCNN(nn.Module):
         in_channels = input_dim[0]
         wh_dim = input_dim[1]
         for i in range(n_conv):
-            layers += [nn.Conv2d(in_channels, conv_dim*(i+1), 5, padding=2),
+            layers += [nn.Conv2d(in_channels, conv_dim*np.power(2, i), 5, padding=2),
                       self.activation_fn, nn.MaxPool2d(2)]
             if i % 2 == noise_layer:
                 layers[-3].weight.requires_grad = False
                 layers[-3].bias.requires_grad = False
                 print("Conv Layer {} is not Uptated".format(i))
             wh_dim //= 2
-            in_channels = conv_dim * (i+1)
+            in_channels = conv_dim * np.power(2, i)
         layers.append(Flatten())
         layers.append(nn.Linear(wh_dim * wh_dim * in_channels, n_cls))
         self.output = nn.Sequential(*layers)
@@ -140,14 +141,14 @@ class IncomingNoisyCNN(nn.Module):
         in_channels = input_dim[0]
         wh_dim = input_dim[1]
         for i in range(n_conv):
-            layers += [nn.Conv2d(in_channels, conv_dim*(i+1), 5, padding=2),
+            layers += [nn.Conv2d(in_channels, conv_dim*np.power(2, i), 5, padding=2),
                       self.activation_fn, nn.MaxPool2d(2)]
             if i <= noise_layer:
                 layers[-3].weight.requires_grad = False
                 layers[-3].bias.requires_grad = False
                 print("Conv Layer {} is not Uptated".format(i))
             wh_dim //= 2 # maxpool
-            in_channels = conv_dim * (i+1)
+            in_channels = conv_dim * np.power(2, i)
         layers.append(Flatten())
         layers.append(nn.Linear(wh_dim * wh_dim * in_channels, n_cls))
         self.output = nn.Sequential(*layers)
