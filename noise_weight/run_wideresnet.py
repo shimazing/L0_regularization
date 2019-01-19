@@ -25,6 +25,7 @@ args = parser.parse_args()
 
 def launch_experiment(args):
     subprocess.run(args=['python3', 'train_cnn.py', '--augment',
+	'--max_epoch', '200',
         '--dataset', str(args[1]),
         '--rand_seed', str(args[2]), '--act_fn', str(args[3]),
         '--noise_layer', str(args[4]), '--policy', str(args[5])])
@@ -40,7 +41,7 @@ def distribute_gpu(q):
 def main():
     i = 0
     n_process = 4
-    rand_seed_list = range(2)
+    rand_seed_list = range(1)
     act_fn = "relu"
     noise_layer_list = range(4)
     args_list = []
