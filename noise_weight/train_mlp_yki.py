@@ -272,8 +272,8 @@ def main():
                                             train_acc*100, train_auc,
                                             valid_acc*100, valid_auc,
                                             np.log(non_zero)))
-        is_best = valid_auc > best_valid_auc
-        best_valid_auc = max(valid_acc, best_valid_auc)
+        is_best = valid_acc > best_valid_acc
+        best_valid_acc = max(valid_acc, best_valid_acc)
         if is_best:
             n_epoch_wo_improvement = 0
             _, test_acc, test_auc = validate(test_loader, n_cls, model)
@@ -399,9 +399,8 @@ def train(train_loader, n_cls, model, criterion, optimizer):
     for i in range(targets.shape[1]):
         if len(np.unique(targets[:, i])) == 2:
             binary.append(i)
-    auc = roc_auc_score(targets[:,binary], scores[:, binary], 'macro')
-    return np.mean(loss_part), np.mean(acc_part), auc, \
-        forward_time, backward_time, optim_time
+#    auc = roc_auc_score(targets[:,binary], scores[:, binary], 'macro')
+    return np.mean(loss_part), np.mean(acc_part), 0, forward_time, backward_time, optim_time
 
 def validate(val_loader, n_cls, model, criterion=None):
     """Perform validation on the validation set"""
@@ -438,14 +437,14 @@ def validate(val_loader, n_cls, model, criterion=None):
     for i in range(targets.shape[1]):
         if len(np.unique(targets[:, i])) == 2:
             binary.append(i)
-    auc = roc_auc_score(targets[:, binary], scores[:, binary], 'macro')
+    #auc = roc_auc_score(targets[:, binary], scores[:, binary], 'macro')
     #auc_list = []
     #for i in binary:
     #    roc, auc_ = ROC_AUC(scores[:,i],targets[:,i])
     #    auc_list.append(auc_)
     #auc_ = np.mean(auc_list)
     #print("hajin {:.4f}, jaehong {:.4f}".format(auc, auc_))
-    return np.mean(loss_part), np.mean(acc_part), auc
+    return np.mean(loss_part), np.mean(acc_part), 0#auc
 
 def ROC_AUC(p, y):
     from sklearn.metrics import roc_curve, auc
