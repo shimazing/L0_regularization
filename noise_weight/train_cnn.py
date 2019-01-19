@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data.sampler import SubsetRandomSampler
-
+import time
 from models_yki import AlternatingNoisyCNN, IncomingNoisyCNN
 from torchvision import datasets, transforms
 import copy
@@ -36,7 +36,7 @@ parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
 parser.add_argument("--augment", action="store_true", default=False)
 parser.add_argument("--dataset", type=str, required=True,
-                    choices=["cifar10", "cifar100", "fashionmnist"])# "mnist",
+                    choices=["cifar10", "cifar100", "fashionmnist", "svhn"])# "mnist",
                              #"whitewine", "redwine", "abalone"])
 args = parser.parse_args()
 args.cuda = args.cuda and torch.cuda.is_available()
@@ -139,6 +139,21 @@ def main():
 
         test_set = eval(dset_string)(root=Fashion_DATA_DIR, train=False,
                                      transform=transforms.Compose([transforms.ToTensor()]), download=True)
+    elif args.dataset == "svhn":
+        dset_string = "datasets.SVHN"
+        n_features = 3*32*32
+        svhn_DATA_DIR = os.path.join(DATA_DIR, "SVHN")
+        n_cls = 10
+        train_tfms = [transforms.ToTensor(),
+                      # transforms.Lambda(lambda x: x.mul_(1./255))]
+                      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        train_set = eval(dset_string)(root=svhn_DATA_DIR, split='train',
+                                      transform=transforms.Compose(train_tfms),
+                                      download=True)
+        valid_set = eval(dset_string)(root=svhn_DATA_DIR, split='train',
+                                      transform=transforms.Compose(train_tfms), download=True)
+        test_set = eval(dset_string)(root=svhn_DATA_DIR, split='test',
+                                     transform=transforms.Compose(train_tfms), download=True)
     elif args.dataset == "redwine":
         train_set = RedWine(train=True)
         valid_set = RedWine(train=True)
@@ -163,7 +178,7 @@ def main():
     #------------------------------------------------------------------------------------------------------------------
     # data loader
     if args.dataset in ["mnist", "cifar10", "cifar100", "whitewine", "redwine",
-            "abalone", "redwine", "fashionmnist"]:
+            "abalone", "redwine", "fashionmnist", "svhn"]:
         # For those data where validation set is not given
         num_train = len(train_set)
         indices = list(range(num_train))
@@ -280,7 +295,8 @@ def main():
     n_epoch_wo_improvement = 0
     for epoch in range(start_epoch, args.max_epoch):
         # train for one epoch
-        train_loss, train_acc, train_auc = train(train_loader, n_cls, model, criterion, optimizer)
+        train_loss, train_acc, train_auc, forward_time, backward_time, optim_time = \
+           train(train_loader, n_cls, model, criterion, optimizer)
         # evaluate on validation set
         valid_loss, valid_acc, valid_auc = validate(valid_loader, n_cls, model, criterion)
         train_loss_list.append(train_loss)
@@ -320,7 +336,10 @@ def main():
                 "valid_auc_list": valid_auc_list,
                 "test_acc": test_acc,
                 "test_auc": test_auc,
-                'optim_state_dict': optimizer.state_dict()
+                'optim_state_dict': optimizer.state_dict(),
+                'forward_time': forward_time,
+                'backward_time': backward_time,
+                'optim_time': optim_time
             }
             save_checkpoint(state, args.save_dir, "best_" + ckpt_name)
         else:
@@ -342,7 +361,10 @@ def main():
                 "valid_acc_list": valid_acc_list,
                 "valid_auc_list": valid_auc_list,
                 "test_acc": test_acc,
-                'optim_state_dict': optimizer.state_dict()
+                'optim_state_dict': optimizer.state_dict(),
+                'forward_time': forward_time,
+                'backward_time': backward_time,
+                'optim_time': optim_time
             }
             save_checkpoint(state, args.save_dir, "{}epoch_".format(epoch)+ckpt_name)
         if n_epoch_wo_improvement > EARLY_STOPPING_CRITERION :
@@ -364,7 +386,10 @@ def main():
         "valid_auc_list": valid_auc_list,
         "test_acc": test_acc,
         "test_auc": test_auc,
-        'optim_state_dict': optimizer.state_dict()
+        'optim_state_dict': optimizer.state_dict(),
+        'forward_time': forward_time,
+        'backward_time': backward_time,
+        'optim_time': optim_time
     }
     save_checkpoint(state, args.save_dir, ckpt_name)
     print('[{}] Test Accuracy: {:.2f}, Test Auc: {:.4f}, log(Non_zero)={:.2f}'.format(
@@ -379,22 +404,34 @@ def train(train_loader, n_cls, model, criterion, optimizer):
     acc_part = []
     scores = []
     targets = []
+    forward_time = 0
+    backward_time = 0
+    optim_time = 0
     for i, (input_, target) in enumerate(train_loader):
         if torch.cuda.is_available():
             target = target.cuda(async=True)
             input_ = input_.cuda()
         # compute output
+        forward_start = time.time()
         output = model(input_)
+        loss = criterion(output, target)
+        forward_time += (time.time()-forward_start)
         preds = output.max(dim=1)[1]
         preds_prob = output.softmax(dim=1).cpu().data.numpy()
         scores.append(preds_prob)
         targets.append(target.cpu().data.numpy())
-        loss = criterion(output, target)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
+        backward_start = time.time()
         loss.backward()
+        backward_time += (time.time()-backward_start)
+        #for m in model.features.modules():
+        #    if isinstance(m, torch.nn.Conv2d) and m.weight.requires_grad:
+        #        print(torch.norm(m.weight.grad.data, p=2))
+        optim_start = time.time()
         optimizer.step()
+        optim_time += (time.time()-optim_start)
 
         # measure accuracy and record loss
         acc = (preds == target).sum().item() / preds.size(0)
@@ -409,7 +446,7 @@ def train(train_loader, n_cls, model, criterion, optimizer):
         if len(np.unique(targets[:, i])) == 2:
             binary.append(i)
     #auc = roc_auc_score(targets[:,binary], scores[:, binary], 'macro')
-    return np.mean(loss_part), np.mean(acc_part), 0# auc
+    return np.mean(loss_part), np.mean(acc_part), 0, forward_time, backward_time, optim_time # auc
 
 def validate(val_loader, n_cls, model, criterion=None):
     """Perform validation on the validation set"""

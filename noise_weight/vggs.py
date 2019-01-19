@@ -24,7 +24,7 @@ class VGG(nn.Module):
         super(VGG, self).__init__()
         self.features = features
         self.classifier = nn.Sequential(
-            #nn.Linear(512 * 7 * 7, 4096),
+            #nn.Linear(512 * 7 * 7, 4096), # for imagenet
             nn.Linear(512 * 1 * 1, hdim), # for cifar
             nn.ReLU(inplace=True),
             nn.Dropout(),
@@ -217,7 +217,7 @@ def vgg16_with_noise(key, bn=False, num_classes=100, hdim=4096, in_channels=3):
             num_classes=num_classes, hdim=hdim)
     def init_weight(m):
         if type(m) == nn.Conv2d or type(m) == nn.Linear:
-            torch.nn.init.kaiming_uniform_(m.weight)
+            torch.nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5))
             fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(m.weight)
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(m.bias, -bound,bound)

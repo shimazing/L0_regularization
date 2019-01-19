@@ -58,6 +58,7 @@ def best_n_layer_mlp(hdim_list, noise_layer_list):
         ax.legend(loc="lower right")#, prop={'size': 30})
         ax.set_ylabel("Test Auc")
         ax.set_xlabel("log(num params)")
-        ax.set_title("[{}] best validation".format(args.dataset))
+        ax.set_title("[{} fc_dim {}] best validation".format(args.dataset, nhid))
         plt.show()
         plt.close()
+main()
