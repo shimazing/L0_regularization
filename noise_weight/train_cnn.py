@@ -36,7 +36,7 @@ parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
 parser.add_argument("--augment", action="store_true", default=False)
 parser.add_argument("--dataset", type=str, required=True,
-                    choices=["cifar10", "cifar100",])# "mnist",
+                    choices=["cifar10", "cifar100", "fashionmnist"])# "mnist",
                              #"whitewine", "redwine", "abalone"])
 args = parser.parse_args()
 args.cuda = args.cuda and torch.cuda.is_available()
@@ -124,6 +124,21 @@ def main():
             train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
         train_set = eval(dset_string)(root='../data', train=True, transform=transforms.Compose(train_tfms),
                                       download=True)
+    elif args.dataset == "fashionmnist":
+        dset_string = "datasets.FashionMNIST"
+        n_features = 784
+        n_cls = 10
+        train_tfms = []
+        train_tfms += [transforms.Pad(2), transforms.ToTensor()]#, normalize]
+        Fashion_DATA_DIR = os.path.join(DATA_DIR, "FashionMNIST")
+        train_set = eval(dset_string)(root=Fashion_DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+
+        valid_set = eval(dset_string)(root=Fashion_DATA_DIR, train=True,
+                                      transform=transforms.Compose(train_tfms), download=True)
+
+        test_set = eval(dset_string)(root=Fashion_DATA_DIR, train=False,
+                                     transform=transforms.Compose([transforms.ToTensor()]), download=True)
     elif args.dataset == "redwine":
         train_set = RedWine(train=True)
         valid_set = RedWine(train=True)
@@ -147,7 +162,8 @@ def main():
 
     #------------------------------------------------------------------------------------------------------------------
     # data loader
-    if args.dataset in ["mnist", "cifar10", "cifar100", "whitewine", "redwine", "abalone", "redwine"]:
+    if args.dataset in ["mnist", "cifar10", "cifar100", "whitewine", "redwine",
+            "abalone", "redwine", "fashionmnist"]:
         # For those data where validation set is not given
         num_train = len(train_set)
         indices = list(range(num_train))
@@ -156,7 +172,6 @@ def main():
         train_idx, valid_idx = indices[split:], indices[:split]
         train_sampler = SubsetRandomSampler(train_idx)
         valid_sampler = SubsetRandomSampler(valid_idx)
-
         train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
                                                    sampler=train_sampler, **kwargs)
         valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
@@ -285,13 +300,12 @@ def main():
                                             train_acc*100, train_auc,
                                             valid_acc*100, valid_auc,
                                             np.log(non_zero)))
-        is_best = valid_auc > best_valid_auc
-        best_valid_auc = max(valid_acc, best_valid_auc)
+        is_best = valid_acc > best_valid_acc
+        best_valid_acc = max(valid_acc, best_valid_acc)
         if is_best:
             n_epoch_wo_improvement = 0
             _, test_acc, test_auc = validate(test_loader, n_cls, model)
             state = {
-                #"model": args.model,
                 "act_fn": args.act_fn,
                 "policy": args.policy,
                 "noise_layer": args.noise_layer,
@@ -315,7 +329,6 @@ def main():
         if epoch > 0 and epoch % SAVE_EPOCH == 0:
             _, test_acc, test_auc = validate(test_loader, n_cls, model)
             state = {
-                #"model": args.model,
                 "act_fn": args.act_fn,
                 "policy": args.policy,
                 "noise_layer": args.noise_layer,
@@ -395,8 +408,8 @@ def train(train_loader, n_cls, model, criterion, optimizer):
     for i in range(targets.shape[1]):
         if len(np.unique(targets[:, i])) == 2:
             binary.append(i)
-    auc = roc_auc_score(targets[:,binary], scores[:, binary], 'macro')
-    return np.mean(loss_part), np.mean(acc_part), auc
+    #auc = roc_auc_score(targets[:,binary], scores[:, binary], 'macro')
+    return np.mean(loss_part), np.mean(acc_part), 0# auc
 
 def validate(val_loader, n_cls, model, criterion=None):
     """Perform validation on the validation set"""
@@ -433,14 +446,8 @@ def validate(val_loader, n_cls, model, criterion=None):
     for i in range(targets.shape[1]):
         if len(np.unique(targets[:, i])) == 2:
             binary.append(i)
-    auc = roc_auc_score(targets[:, binary], scores[:, binary], 'macro')
-    #auc_list = []
-    #for i in binary:
-    #    roc, auc_ = ROC_AUC(scores[:,i],targets[:,i])
-    #    auc_list.append(auc_)
-    #auc_ = np.mean(auc_list)
-    #print("hajin {:.4f}, jaehong {:.4f}".format(auc, auc_))
-    return np.mean(loss_part), np.mean(acc_part), auc
+    #auc = roc_auc_score(targets[:, binary], scores[:, binary], 'macro')
+    return np.mean(loss_part), np.mean(acc_part), 0# auc
 
 def ROC_AUC(p, y):
     from sklearn.metrics import roc_curve, auc
