@@ -48,7 +48,7 @@ def main():
     for rand_seed in rand_seed_list:
         for noise_layer in noise_layer_list:
             args_list.append([i % 4, args.dataset,
-                rand_seed, act_fn, noise_layer, "NoisyVgg16"])
+                rand_seed, act_fn, noise_layer, "NoisyWideResNet"])
             i += 1
     print("# Total training samples={}".format(len(args_list)))
     np.random.shuffle(args_list)
