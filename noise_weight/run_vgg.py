@@ -24,7 +24,8 @@ args = parser.parse_args()
 
 
 def launch_experiment(args):
-    subprocess.run(args=['python3', 'train_cnn.py', '--augment',
+    subprocess.run(args=['python3', 'train_cnn.py', #'--augment',
+        '--max_epoch', str(300),
         '--dataset', str(args[1]), '--hdim', str(args[2]),
         '--rand_seed', str(args[3]), '--act_fn', str(args[4]),
         '--noise_layer', str(args[5]), '--policy', str(args[6])])
