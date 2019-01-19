@@ -35,6 +35,7 @@ parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
 parser.add_argument("--augment", action="store_true", default=False)
+parser.add_argument("--batchnorm", action="store_true", default=False)
 parser.add_argument("--dataset", type=str, required=True,
                     choices=["cifar10", "cifar100", "fashionmnist", "svhn"])# "mnist",
                              #"whitewine", "redwine", "abalone"])
@@ -51,7 +52,10 @@ def main():
     if args.policy == "NoisyVgg16":
         args.n_conv = 'na'
         args.conv_dim = 'na'
+        if args.batchnorm:
+            args.policy += "BN"
         args.policy += "-{}".format(args.hdim)
+
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
                                                    args.noise_layer, args.act_fn, args.rand_seed)
@@ -217,7 +221,7 @@ def main():
                 n_conv=args.n_conv, conv_dim=args.conv_dim, fc_layer_dims=[],
                 activation_fn=args.act_fn, noise_layer=args.noise_layer)
     elif args.policy.startswith("NoisyVgg16"):
-        model = vgg16_with_noise(args.noise_layer, bn=False, num_classes=n_cls,
+        model = vgg16_with_noise(args.noise_layer, bn=args.batchnorm, num_classes=n_cls,
                 hdim=args.hdim, in_channels=1 if args.dataset=='fashionmnist' else 3)
     else:
         raise ValueError
