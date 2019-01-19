@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
@@ -11,6 +12,7 @@ import os
 import numpy as np
 from dataloader import *
 from vggs import vgg16_with_noise
+from wide_resnet import WideResNet
 
 parser = argparse.ArgumentParser(description='NoisyNet MLP-300-300 Training')
 parser.add_argument('--max_epoch', default=100, type=int,
@@ -26,7 +28,8 @@ parser.add_argument('--weight-decay', '--wd', default=0.0005, type=float,
 #                    help='name of experiment')
 parser.add_argument("--save_dir", type=str, default="ckpt")
 parser.add_argument("--policy", type=str, required=True,
-        choices=["AlternatingNoisyCNN", "IncomingNoisyCNN", "NoisyVgg16"])
+        choices=["AlternatingNoisyCNN", "IncomingNoisyCNN", "NoisyVgg16",
+        "NoisyWideResNet"])
 parser.add_argument("--noise_layer", type=int, required=True, help="-1 means training whole networks")
 parser.add_argument("--n_conv", type=int, default=2)
 parser.add_argument("--conv_dim", type=int, default=10)
@@ -48,6 +51,16 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 SAVE_EPOCH = 100
 
 
+def learning_rate(init, epoch):
+    optim_factor = 0
+    if(epoch > 160):
+        optim_factor = 3
+    elif(epoch > 120):
+        optim_factor = 2
+    elif(epoch > 60):
+        optim_factor = 1
+    return init*math.pow(0.2, optim_factor)
+
 def main():
     if args.policy == "NoisyVgg16":
         args.n_conv = 'na'
@@ -55,6 +68,9 @@ def main():
         if args.batchnorm:
             args.policy += "BN"
         args.policy += "-{}".format(args.hdim)
+    elif args.policy == "NoisyWideResNet":
+        args.n_conv = 'na'
+        args.conv_dim = 'na'
 
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
@@ -223,6 +239,8 @@ def main():
     elif args.policy.startswith("NoisyVgg16"):
         model = vgg16_with_noise(args.noise_layer, bn=args.batchnorm, num_classes=n_cls,
                 hdim=args.hdim, in_channels=1 if args.dataset=='fashionmnist' else 3)
+    elif args.policy == "NoisyWideResNet":
+        model = WideResNet(28, 10, 0.3, n_cls, noise_layer=args.noise_layer)
     else:
         raise ValueError
     #
@@ -235,7 +253,11 @@ def main():
             noise_param_list.append(param)
             noise_name_list.append(name)
     #
-    optimizer = torch.optim.Adam(param_list, args.lr)
+    if args.policy == "NoisyWideResNet":
+        optimizer = torch.optim.SGD(param_list, lr=learning_rate(0.1, 0),
+                momentum=0.9, weight_decay=5e-4)
+    else:
+        optimizer = torch.optim.Adam(param_list, args.lr)
     if torch.cuda.is_available():
         model = model.cuda()
         cudnn.benchmark = True
@@ -298,6 +320,9 @@ def main():
 
     n_epoch_wo_improvement = 0
     for epoch in range(start_epoch, args.max_epoch):
+        if args.policy == "NoisyWideResNet":
+            optimizer = torch.optim.SGD(param_list, lr=learning_rate(0.1, epoch),
+                    momentum=0.9, weight_decay=5e-4)
         # train for one epoch
         train_loss, train_acc, train_auc, forward_time, backward_time, optim_time = \
            train(train_loader, n_cls, model, criterion, optimizer)
