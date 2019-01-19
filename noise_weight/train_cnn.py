@@ -203,7 +203,7 @@ def main():
                 activation_fn=args.act_fn, noise_layer=args.noise_layer)
     elif args.policy.startswith("NoisyVgg16"):
         model = vgg16_with_noise(args.noise_layer, bn=False, num_classes=n_cls,
-                hdim=args.hdim)
+                hdim=args.hdim, in_channels=1 if args.dataset=='fashionmnist' else 3)
     else:
         raise ValueError
     #

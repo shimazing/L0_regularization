@@ -57,9 +57,8 @@ class VGG(nn.Module):
                 m.bias.data.zero_()
 
 
-def make_layers(cfg, batch_norm=False):
+def make_layers(cfg, batch_norm=False, in_channels=3):
     layers = []
-    in_channels = 3
     for v in cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
@@ -95,9 +94,8 @@ cfg = {
     'E': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
-def make_layers_with_noise(noise_cfg, batch_norm=False):
+def make_layers_with_noise(noise_cfg, batch_norm=False, in_channels=3):
     layers = []
-    in_channels = 3
     for v, requires_grad in noise_cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
@@ -213,9 +211,9 @@ def vgg16_bn(**kwargs):
     kwargs.pop('model_root', None)
     return VGG(make_layers(cfg['D'], batch_norm=True), **kwargs)
 
-def vgg16_with_noise(key, bn=False, num_classes=100, hdim=4096):
+def vgg16_with_noise(key, bn=False, num_classes=100, hdim=4096, in_channels=3):
     """VGG 16-layer model (configuration "D")"""
-    model = VGG(make_layers_with_noise(noise_cfg[key], batch_norm=bn),
+    model = VGG(make_layers_with_noise(noise_cfg[key], batch_norm=bn, in_channels=in_channels),
             num_classes=num_classes, hdim=hdim)
     def init_weight(m):
         if type(m) == nn.Conv2d or type(m) == nn.Linear:
