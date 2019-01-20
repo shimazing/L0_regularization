@@ -205,12 +205,26 @@ def main():
 
     #------------------------------------------------------------------------------------------------------------------
     # data loader
-    if args.dataset in ["mnist", "cifar10", "cifar100", "whitewine", "redwine",
+    if args.dataset in ["mnist", "whitewine", "redwine",
             "abalone", "redwine", "fashionmnist", "svhn"]:
         # For those data where validation set is not given
         num_train = len(train_set)
         indices = list(range(num_train))
         valid_size = 0.25
+        split = int(np.floor(valid_size * num_train))
+        train_idx, valid_idx = indices[split:], indices[:split]
+        train_sampler = SubsetRandomSampler(train_idx)
+        valid_sampler = SubsetRandomSampler(valid_idx)
+        train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
+                                                   sampler=train_sampler, **kwargs)
+        valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
+                                                   sampler=valid_sampler, **kwargs)
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, **kwargs)
+    elif args.dataset in ["cifar10", "cifar100"]:
+        # For those data where validation set is not given
+        num_train = len(train_set)
+        indices = list(range(num_train))
+        valid_size = 1./50000
         split = int(np.floor(valid_size * num_train))
         train_idx, valid_idx = indices[split:], indices[:split]
         train_sampler = SubsetRandomSampler(train_idx)
