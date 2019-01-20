@@ -20,7 +20,7 @@ model_urls = {
 
 class VGG(nn.Module):
 
-    def __init__(self, features, num_classes=1000, hdim=4096):
+    def __init__(self, features, num_classes=1000, hdim=4096, fc_key=0):
         super(VGG, self).__init__()
         self.features = features
         self.classifier = nn.Sequential(
@@ -34,6 +34,11 @@ class VGG(nn.Module):
             nn.Linear(hdim, num_classes),
         )
         #self._initialize_weights()
+        assert fc_key < 4
+        self.classifier[0].weight.requires_grad = fc_cfg[fc_key][0]
+        self.classifier[0].bias.requires_grad = fc_cfg[fc_key][0]
+        self.classifier[3].weight.requires_grad = fc_cfg[fc_key][1]
+        self.classifier[3].weight.requires_grad = fc_cfg[fc_key][1]
 
     def forward(self, x):
         x = self.features(x)
@@ -169,6 +174,13 @@ noise_cfg = {
         (512, False), (512, False), (512, False), ('M', None)]#
 }
 
+fc_cfg = {
+    0: (True, True),
+    1: (False, True),
+    2: (False, False),
+    3: (True, False)
+}
+
 
 def vgg11(pretrained=False, model_root=None, **kwargs):
     """VGG 11-layer model (configuration "A")"""
@@ -211,10 +223,10 @@ def vgg16_bn(**kwargs):
     kwargs.pop('model_root', None)
     return VGG(make_layers(cfg['D'], batch_norm=True), **kwargs)
 
-def vgg16_with_noise(key, bn=False, num_classes=100, hdim=4096, in_channels=3):
+def vgg16_with_noise(key, fc_key=0, bn=False, num_classes=100, hdim=4096, in_channels=3):
     """VGG 16-layer model (configuration "D")"""
     model = VGG(make_layers_with_noise(noise_cfg[key], batch_norm=bn, in_channels=in_channels),
-            num_classes=num_classes, hdim=hdim)
+            num_classes=num_classes, hdim=hdim, fc_key=fc_key)
     def init_weight(m):
         if type(m) == nn.Conv2d or type(m) == nn.Linear:
             torch.nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5))
