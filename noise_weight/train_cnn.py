@@ -41,6 +41,7 @@ parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
 parser.add_argument("--augment", action="store_true", default=False)
 parser.add_argument("--batchnorm", action="store_true", default=False)
+parser.add_argument("--optim", default='adam', choices=['adam', 'sgd'])
 parser.add_argument("--dataset", type=str, required=True,
                     choices=["cifar10", "cifar100", "fashionmnist", "svhn"])# "mnist",
                              #"whitewine", "redwine", "abalone"])
@@ -75,6 +76,8 @@ def main():
     elif args.policy == "NoisyWideResNet":
         args.n_conv = 'na'
         args.conv_dim = 'na'
+        if args.optim == 'adam':
+            args.policy += "Adam"
 
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
@@ -259,7 +262,7 @@ def main():
             noise_param_list.append(param)
             noise_name_list.append(name)
     #
-    if args.policy == "NoisyWideResNet":
+    if args.policy == "NoisyWideResNet" and args.optim == 'sgd':
         optimizer = torch.optim.SGD(param_list, lr=learning_rate(0.1, 0),
                 momentum=0.9, weight_decay=5e-4)
     else:
@@ -332,7 +335,7 @@ def main():
 
     n_epoch_wo_improvement = 0
     for epoch in range(start_epoch, args.max_epoch):
-        if args.policy == "NoisyWideResNet":
+        if args.policy == "NoisyWideResNet" and args.optim=='sgd':
             optimizer = torch.optim.SGD(param_list, lr=learning_rate(0.1, epoch),
                     momentum=0.9, weight_decay=5e-4)
         # train for one epoch

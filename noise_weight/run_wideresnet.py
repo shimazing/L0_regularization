@@ -28,7 +28,8 @@ def launch_experiment(args):
 	'--max_epoch', '200',
         '--dataset', str(args[1]),
         '--rand_seed', str(args[2]), '--act_fn', str(args[3]),
-        '--noise_layer', str(args[4]), '--policy', str(args[5])])
+        '--noise_layer', str(args[4]), '--policy', str(args[5]),
+        '--optim', args[6]])
     launch_experiment.GPUq.put(int(os.environ['CUDA_VISIBLE_DEVICES']))
     return args
 
@@ -48,7 +49,7 @@ def main():
     for rand_seed in rand_seed_list:
         for noise_layer in noise_layer_list:
             args_list.append([i % 4, args.dataset,
-                rand_seed, act_fn, noise_layer, "NoisyWideResNet"])
+                rand_seed, act_fn, noise_layer, "NoisyWideResNet", "adam"])
             i += 1
     print("# Total training samples={}".format(len(args_list)))
     np.random.shuffle(args_list)
