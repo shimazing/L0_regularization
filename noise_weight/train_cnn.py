@@ -250,6 +250,9 @@ def main():
         valid_acc_list = checkpoint["valid_acc_list"]
         valid_auc_list = checkpoint["valid_auc_list"]
         non_zero_list = checkpoint["non_zero_list"]
+        forward_time = checkpoint["forward_time"]
+        backward_time = checkpoint["backward_time"]
+        optim_time = checkpoint["optim_time"]
         non_zero = non_zero_list[-1]
         best_valid_acc = max(valid_acc_list)
         best_valid_auc = max(valid_auc_list)
@@ -269,6 +272,9 @@ def main():
         valid_acc_list = checkpoint["valid_acc_list"]
         valid_auc_list = checkpoint["valid_auc_list"]
         non_zero_list = checkpoint["non_zero_list"]
+        forward_time = checkpoint["forward_time"]
+        backward_time = checkpoint["backward_time"]
+        optim_time = checkpoint["optim_time"]
         non_zero = non_zero_list[-1]
         best_valid_acc = max(valid_acc_list)
         best_valid_auc = max(valid_auc_list)
