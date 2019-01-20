@@ -240,7 +240,8 @@ def main():
         model = vgg16_with_noise(args.noise_layer, bn=args.batchnorm, num_classes=n_cls,
                 hdim=args.hdim, in_channels=1 if args.dataset=='fashionmnist' else 3)
     elif args.policy == "NoisyWideResNet":
-        model = WideResNet(28, 10, 0.3, n_cls, noise_layer=args.noise_layer)
+        model = WideResNet(28, 10, 0.3, n_cls, noise_layer=args.noise_layer,
+                in_channels=1 if args.dataset=='fashionmnist' else 3)
     else:
         raise ValueError
     #
