@@ -18,14 +18,13 @@ for i in range(4):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type=str, required=True,
-                    choices=["cifar10","cifar100"])
-#parser.add_argument("--augment", action='store_true', default=False)
+                    choices=["cifar10","cifar100", "fashionmnist"])
 args = parser.parse_args()
 
 
 def launch_experiment(args):
-    subprocess.run(args=['python3', 'train_cnn.py', #'--augment',
-        '--max_epoch', str(300),
+    subprocess.run(args=['python3', 'train_cnn.py', '--batchnorm',#'--augment',
+        '--max_epoch', '100',
         '--dataset', str(args[1]), '--hdim', str(args[2]),
         '--rand_seed', str(args[3]), '--act_fn', str(args[4]),
         '--noise_layer', str(args[5]), '--policy', str(args[6])])
@@ -41,7 +40,7 @@ def distribute_gpu(q):
 def main():
     i = 0
     n_process = 4
-    hdim_list = [512, 4096, 2048, 1024]
+    hdim_list = [512,1024]# 4096, 2048, 1024]
     rand_seed_list = range(4)
     act_fn = "relu"
     noise_layer_list = range(11)

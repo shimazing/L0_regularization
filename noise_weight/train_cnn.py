@@ -165,7 +165,7 @@ def main():
                                       transform=transforms.Compose(train_tfms), download=True)
 
         test_set = eval(dset_string)(root=Fashion_DATA_DIR, train=False,
-                                     transform=transforms.Compose([transforms.ToTensor()]), download=True)
+                                     transform=transforms.Compose(train_tfms), download=True)
     elif args.dataset == "svhn":
         dset_string = "datasets.SVHN"
         n_features = 3*32*32
@@ -180,7 +180,7 @@ def main():
         valid_set = eval(dset_string)(root=svhn_DATA_DIR, split='train',
                                       transform=transforms.Compose(train_tfms), download=True)
         test_set = eval(dset_string)(root=svhn_DATA_DIR, split='test',
-                                     transform=transforms.Compose(train_tfms), download=True)
+                                      transform=transforms.Compose(train_tfms), download=True)
     elif args.dataset == "redwine":
         train_set = RedWine(train=True)
         valid_set = RedWine(train=True)
@@ -275,8 +275,8 @@ def main():
     if os.path.exists(os.path.join(CKPT_DIR, ckpt_name)):
         checkpoint = torch.load(os.path.join(CKPT_DIR, ckpt_name))
         epoch = start_epoch = checkpoint['epoch']
-        test_acc = checkpoint['test_acc']
         model.load_state_dict(checkpoint['model_state_dict'])
+        test_acc = checkpoint['test_acc']
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
         train_loss_list = checkpoint["train_loss_list"]
         train_acc_list = checkpoint["train_acc_list"]
