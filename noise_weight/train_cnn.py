@@ -40,7 +40,7 @@ parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
 parser.add_argument("--augment", action="store_true", default=False)
 parser.add_argument("--batchnorm", action="store_true", default=False)
-parser.add_argument("--optim", default='adam', choices=['adam', 'sgd'])
+parser.add_argument("--optim", default='sgd', choices=['adam', 'sgd'])
 parser.add_argument("--dataset", type=str, required=True,
                     choices=["cifar10", "cifar100", "fashionmnist", "svhn"])# "mnist",
                              #"whitewine", "redwine", "abalone"])
