@@ -31,8 +31,7 @@ parser.add_argument("--policy", type=str, required=True,
         choices=["AlternatingNoisyCNN", "IncomingNoisyCNN", "NoisyVgg16",
         "NoisyWideResNet"])
 parser.add_argument("--noise_layer", type=int, required=True, help="-1 means training whole networks")
-parser.add_argument("--noise_fc_layer", type=int, default=0, choices=[0, 1, 2,
-    3])
+parser.add_argument("--noise_fc_layer", type=int, default=0)
 parser.add_argument("--n_conv", type=int, default=2)
 parser.add_argument("--conv_dim", type=int, default=10)
 parser.add_argument("--hdim", type=int, default=4096, choices=[4096, 2048, 1024, 512])
@@ -78,6 +77,8 @@ def main():
         args.conv_dim = 'na'
         if args.optim == 'adam':
             args.policy += "Adam"
+        if args.noise_fc_layer > 0:
+            args.policy += "-{}".format(args.noise_fc_layer)
 
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
@@ -249,7 +250,8 @@ def main():
                 else 3)
     elif args.policy.startswith("NoisyWideResNet"):
         model = WideResNet(28, 10, 0.3, n_cls, noise_layer=args.noise_layer,
-                in_channels=1 if args.dataset=='fashionmnist' else 3)
+                in_channels=1 if args.dataset=='fashionmnist' else 3,
+                noise_fc_layer=args.noise_fc_layer)
     else:
         raise ValueError
     #

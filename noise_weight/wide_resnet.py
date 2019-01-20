@@ -50,6 +50,7 @@ confs = {
     6: (True, True, False)
 }
 
+
 def init_weight(m):
     if type(m) == nn.Conv2d or type(m) == nn.Linear:
         torch.nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5))
@@ -57,9 +58,10 @@ def init_weight(m):
         bound = 1 / math.sqrt(fan_in)
         torch.nn.init.uniform_(m.bias, -bound,bound)
 
+
 class WideResNet(nn.Module):
     def __init__(self, depth, widen_factor, dropout_rate, num_classes,
-            noise_layer=0, in_channels=3):
+            noise_layer=0, noise_fc_layer=0, times=1, in_channels=3):
         super(WideResNet, self).__init__()
         self.in_planes = 16
 
@@ -74,8 +76,17 @@ class WideResNet(nn.Module):
         self.layer2 = self._wide_layer(wide_basic, nStages[2], n, dropout_rate, stride=2)
         self.layer3 = self._wide_layer(wide_basic, nStages[3], n, dropout_rate, stride=2)
         self.bn1 = nn.BatchNorm2d(nStages[3], momentum=0.9)
-        self.linear = nn.Linear(nStages[3], num_classes)
-
+        self.fcs = []
+        for i in range(noise_fc_layer):
+            in_dim = nStages[3] if i == 0 else nStages[3] * times
+            out_dim = nStages[3] if i == (noise_fc_layer - 1) else nStages[3] * times
+            linear = nn.Linear(in_dim, out_dim)
+            linear.weight.requires_grad = False
+            linear.bias.requires_grad = False
+            self.fcs += [linear, nn.ReLU()]
+        self.fcs.append(nn.Linear(nStages[3], num_classes))
+        self.fcs = nn.Sequential(*self.fcs)
+        #self.linear = nn.Linear(nStages[3], num_classes)
         grad_conf = confs[noise_layer]
         for m in self.layer1.modules():
             if isinstance(m, nn.Conv2d):
@@ -110,7 +121,7 @@ class WideResNet(nn.Module):
         out = F.relu(self.bn1(out))
         out = F.avg_pool2d(out, 8)
         out = out.view(out.size(0), -1)
-        out = self.linear(out)
+        out = self.fcs(out)
 
         return out
 # https://github.com/meliketoy/wide-resnet.pytorch/blob/master/networks/wide_resnet.py
