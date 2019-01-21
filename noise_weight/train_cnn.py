@@ -83,7 +83,7 @@ def main():
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
                                                    args.noise_layer, args.act_fn, args.rand_seed)
-    if args.augment and args.datset.startswith('cifar'):
+    if args.augment and args.dataset.startswith('cifar'):
         ckpt_name = 'augment_' + ckpt_name
     np.random.seed(args.rand_seed)
     torch.manual_seed(args.rand_seed)
