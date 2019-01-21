@@ -162,12 +162,10 @@ def main():
         Fashion_DATA_DIR = os.path.join(DATA_DIR, "FashionMNIST")
         train_set = eval(dset_string)(root=Fashion_DATA_DIR, train=True,
                                       transform=transforms.Compose(train_tfms), download=True)
-
-        valid_set = eval(dset_string)(root=Fashion_DATA_DIR, train=True,
-                                      transform=transforms.Compose(train_tfms), download=True)
-
-        test_set = eval(dset_string)(root=Fashion_DATA_DIR, train=False,
+        valid_set = test_set = eval(dset_string)(root=Fashion_DATA_DIR, train=False,
                                      transform=transforms.Compose(train_tfms), download=True)
+        #valid_set = eval(dset_string)(root=Fashion_DATA_DIR, train=True,
+        #                              transform=transforms.Compose(train_tfms), download=True)
     elif args.dataset == "svhn":
         dset_string = "datasets.SVHN"
         n_features = 3*32*32
@@ -207,7 +205,7 @@ def main():
     #------------------------------------------------------------------------------------------------------------------
     # data loader
     if args.dataset in ["mnist", "whitewine", "redwine",
-            "abalone", "redwine", "fashionmnist", "svhn"]:
+            "abalone", "redwine", "svhn"]:
         # For those data where validation set is not given
         num_train = len(train_set)
         indices = list(range(num_train))
@@ -221,7 +219,7 @@ def main():
         valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
                                                    sampler=valid_sampler, **kwargs)
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, **kwargs)
-    elif args.dataset in ["cifar10", "cifar100"]:
+    elif args.dataset in ["cifar10", "cifar100", 'fashionmnist']:
         # For those data where validation set is not given
         #num_train = len(train_set)
         #indices = list(range(num_train))
