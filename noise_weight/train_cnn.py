@@ -6,6 +6,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 import time
 from models_yki import AlternatingNoisyCNN, IncomingNoisyCNN
 from torchvision import datasets, transforms
+from torch.optim import lr_scheduler
 import copy
 import argparse
 import os
@@ -352,10 +353,14 @@ def main():
         criterion = criterion.cuda()
 
     n_epoch_wo_improvement = 0
+    if args.policy.startswith("NoisyWideResNet"):
+        scheduler = lr_scheduler.MultiStepLR(optimizer, [60, 120, 160],
+                gamma=0.2)
+    else:
+        scheduler = None
     for epoch in range(start_epoch, args.max_epoch):
-        if args.policy == "NoisyWideResNet" and args.optim=='sgd':
-            optimizer = torch.optim.SGD(param_list, lr=learning_rate(0.1, epoch),
-                    momentum=0.9, weight_decay=5e-4)
+        if scheduler:
+            scheduler.step()
         # train for one epoch
         train_loss, train_acc, train_auc, forward_time, backward_time, optim_time = \
            train(train_loader, n_cls, model, criterion, optimizer)
