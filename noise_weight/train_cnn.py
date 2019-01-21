@@ -144,10 +144,11 @@ def main():
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
         train_tfms = [transforms.ToTensor(), normalize]
-        valid_set = eval(dset_string)(root='../data', train=True, transform=transforms.Compose(train_tfms),
-                                      download=True)
         test_set = eval(dset_string)(root='../data', train=False, transform=transforms.Compose(train_tfms),
                                      download=True)
+        valid_set = test_set
+        #eval(dset_string)(root='../data', train=True, transform=transforms.Compose(train_tfms),
+        #                              download=True)
         if args.augment:
             train_tfms = [transforms.RandomCrop(32, 4), transforms.RandomHorizontalFlip()] + train_tfms
         train_set = eval(dset_string)(root='../data', train=True, transform=transforms.Compose(train_tfms),
@@ -222,17 +223,20 @@ def main():
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, **kwargs)
     elif args.dataset in ["cifar10", "cifar100"]:
         # For those data where validation set is not given
-        num_train = len(train_set)
-        indices = list(range(num_train))
-        valid_size = 1./50000
-        split = int(np.floor(valid_size * num_train))
-        train_idx, valid_idx = indices[split:], indices[:split]
-        train_sampler = SubsetRandomSampler(train_idx)
-        valid_sampler = SubsetRandomSampler(valid_idx)
+        #num_train = len(train_set)
+        #indices = list(range(num_train))
+        #valid_size = 1./50000
+        #split = int(np.floor(valid_size * num_train))
+        #train_idx, valid_idx = indices[split:], indices[:split]
+        #train_sampler = SubsetRandomSampler(train_idx)
+        #valid_sampler = SubsetRandomSampler(valid_idx)
         train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
-                                                   sampler=train_sampler, **kwargs)
+                                                    shuffle=True,
+                                                   #sampler=train_sampler,
+                                                   **kwargs)
         valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args.batch_size,
-                                                   sampler=valid_sampler, **kwargs)
+                                                   #sampler=valid_sampler,
+                                                   **kwargs)
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, **kwargs)
     elif args.dataset in ["letter", "dna", "satimage", "shuttle", "ijcnn1"]:
         # For those data where validation set is given
