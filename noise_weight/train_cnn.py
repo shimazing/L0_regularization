@@ -38,7 +38,7 @@ parser.add_argument("--hdim", type=int, default=4096, choices=[4096, 2048, 1024,
 parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
-parser.add_argument("--augment", action="store_true", default=False)
+parser.add_argument("--augment", action="store_true", default=True)
 parser.add_argument("--batchnorm", action="store_true", default=False)
 parser.add_argument("--optim", default='sgd', choices=['adam', 'sgd'])
 parser.add_argument("--dataset", type=str, required=True,
@@ -83,7 +83,7 @@ def main():
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
                                                    args.noise_layer, args.act_fn, args.rand_seed)
-    if args.augment:
+    if args.augment and args.dataset.startswith('cifar'):
         ckpt_name = 'augment_' + ckpt_name
     np.random.seed(args.rand_seed)
     torch.manual_seed(args.rand_seed)
