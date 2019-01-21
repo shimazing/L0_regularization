@@ -34,7 +34,7 @@ parser.add_argument("--noise_layer", type=int, required=True, help="-1 means tra
 parser.add_argument("--noise_fc_layer", type=int, default=0)
 parser.add_argument("--n_conv", type=int, default=2)
 parser.add_argument("--conv_dim", type=int, default=10)
-parser.add_argument("--hdim", type=int, default=4096, choices=[4096, 2048, 1024, 512])
+parser.add_argument("--hdim", type=int, default=4096)
 parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument("--cuda", action="store_true", default=True)
 parser.add_argument("--verbose", action="store_true", default=False)
@@ -79,6 +79,8 @@ def main():
             args.policy += "Adam"
         if args.noise_fc_layer > 0:
             args.policy += "-{}".format(args.noise_fc_layer)
+            if args.hdim > 1:
+                args.policy += "-{}".format(args.hdim)
 
     ckpt_name = "{}_{}_{}_{}_{}_{}_{}.pth.tar".format(args.dataset, args.policy,
                                                    args.n_conv, args.conv_dim,
@@ -267,7 +269,7 @@ def main():
     elif args.policy.startswith("NoisyWideResNet"):
         model = WideResNet(28, 10, 0.3, n_cls, noise_layer=args.noise_layer,
                 in_channels=1 if args.dataset=='fashionmnist' else 3,
-                noise_fc_layer=args.noise_fc_layer)
+                noise_fc_layer=args.noise_fc_layer, times=args.hdim)
     else:
         raise ValueError
     #
