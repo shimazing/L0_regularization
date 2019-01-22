@@ -182,3 +182,38 @@ class NoisyMLP1(nn.Module):
     def forward(self, x):
         x = x.view(x.size(0),-1)
         return self.output(x)
+
+confs = {
+    0: (True,),
+    1: (False,),
+    2: (True, True),
+    3: (False, True),
+    4: (True, False),
+    5: (False, False)
+}
+
+class NoisyMLP(nn.Module):
+    def __init__(self, input_dim=640, n_cls=100, noise_layer=0, times=1,
+            dropout=0):
+        super(NoisyMLP, self).__init__()
+        self.input_dim = input_dim
+        self.n_cls = n_cls
+        layers = []
+        #for i, dimh in enumerate(self.layer_dims):
+        for i, requires_grad in enumerate(confs[noise_layer]):
+            inp_dim = input_dim if i==0 else layer_dims[i-1]
+            dimh = int(times * input_dim) if i != (len(confs[noise_layer]) - 1) else input_dim
+            layer = nn.Linear(inp_dim, dimh)
+            layer.weight.requires_grad = requires_grad
+            layer.bias.requires_grad = requires_grad
+            layers += [layer, nn.ReLU()]
+            if dropout > 0:
+                layers += [nn.Dropout(dropout)]
+        layers.append(nn.Linear(dimh, n_cls))
+
+        self.output = nn.Sequential(*layers)
+        self.layers = layers
+
+    def forward(self, x):
+        #x = x.view(x.size(0),-1)
+        return self.output(x)

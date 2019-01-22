@@ -125,7 +125,7 @@ class WideResNet(nn.Module):
 
         return out
 
-    def foward_conv(self, x):
+    def forward_conv(self, x):
         out = self.conv1(x)
         out = self.layer1(out)
         out = self.layer2(out)
