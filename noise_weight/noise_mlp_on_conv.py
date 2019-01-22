@@ -19,6 +19,7 @@ parser.add_argument('-b', '--batch-size', default=128, type=int,
                     help='mini-batch size (default: 32)')
 parser.add_argument("--save_dir", type=str, default="ckpt")
 parser.add_argument("--policy", type=str, default="NoisyMLPonWRN", choices=["NoisyMLPonWRN"])
+parser.add_argument("--model", type=str, default="NoisyMLP")
 parser.add_argument("--rand_seed", type=int, default=11)
 parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     help='initial learning rate')
@@ -27,16 +28,22 @@ parser.add_argument('--weight-decay', '--wd', default=0.0005, type=float,
 args = parser.parse_args()
 
 CKPT_DIR = args.save_dir
-ckpt = torch.load('ckpt/augment_cifar100_NoisyWideResNet_na_na_0_relu_0.pth.tar')
+SAVE_EPOCH = 100
+device = torch.device('cuda')
+
+
+ckpt = torch.load('augment_cifar100_NoisyWideResNet_na_na_0_relu_0.pth.tar')
 wrn = WideResNet(28, 10, 0.3, 100)
 wrn.load_state_dict(ckpt["model_state_dict"])
-device = torch.device('cuda')
 wrn.to(device)
+wrn.eval()
+
+'''
 transform = transforms.Compose([transforms.RandomCrop(32, 4),
     transforms.RandomHorizontalFlip(), transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224,
         0.225])])#,
-
+'''
 test_transform = transforms.Compose([transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224,
         0.225])])#,
@@ -44,10 +51,52 @@ test_transform = transforms.Compose([transforms.ToTensor(),
     #    32)).detach())])
 
 train_set = datasets.CIFAR100(root='../data',train=True, download=True,
-            transform=transform)
+            transform=test_transform)
 test_set = datasets.CIFAR100(root='../data',train=False, download=True,
             transform=test_transform)
 
+
+train_loader =  torch.utils.data.DataLoader(train_set,
+        batch_size=args.batch_size,
+        shuffle=False, num_workers=4)
+test_loader =  torch.utils.data.DataLoader(test_set, batch_size=args.batch_size,
+        shuffle=False, num_workers=4)
+
+X_list = []
+y_list = []
+for X, y in train_loader:
+    X = wrn.forward_conv(X.to(device)).cpu().data.numpy()
+    X_list.append(X)
+    y_list.append(y.numpy())
+X = np.concatenate(X_list, axis=0).astype(np.float32)
+y = np.concatenate(y_list).astype(np.int64)
+print(y)
+np.save("X.wrn.train", X)
+np.save("y.wrn.train", y)
+print(X.shape, y.shape)
+train_set = torch.utils.data.TensorDataset(torch.from_numpy(X), torch.from_numpy(y))
+
+X_list_ = []
+y_list_ = []
+for X_, y_ in test_loader:
+    X_ = wrn.forward_conv(X_.to(device)).cpu().data.numpy()
+    X_list_.append(X_)
+    y_list_.append(y_.numpy())
+X_ = np.concatenate(X_list_, axis=0).astype(np.float32)
+y_ = np.concatenate(y_list_).astype(np.int64)
+print(y_)
+np.save("X.wrn.test", X_)
+np.save("y.wrn.test", y_)
+print(X_.shape, y_.shape)
+test_set = torch.utils.data.TensorDataset(torch.from_numpy(X_), torch.from_numpy(np.random.randint(0, 100, len(X_))))
+
+#X = np.load("X.wrn.train.npy")
+#y = np.load("y.wrn.train.npy")
+#train_set = torch.utils.data.TensorDataset(torch.from_numpy(X), torch.from_numpy(y))
+
+#X_ = np.load("X.wrn.test.npy")
+#y_ = np.load("y.wrn.test.npy")
+#test_set = torch.utils.data.TensorDataset(torch.from_numpy(X_), torch.from_numpy(y_))
 
 train_loader =  torch.utils.data.DataLoader(train_set,
         batch_size=args.batch_size,
@@ -56,13 +105,14 @@ test_loader =  torch.utils.data.DataLoader(test_set, batch_size=args.batch_size,
         shuffle=False, num_workers=4)
 valid_loader = test_loader
 
+    
 
 
 
 
 
 def main():
-    ckpt_name = "{}_{}_{}_{}.pth.tar".format('augment_cifar100', args.policy,
+    ckpt_name = "{}_{}_{}_{}_{}.pth.tar".format('augment_cifar100', args.policy,
             args.noise_layer, args.hdim, args.rand_seed)
     np.random.seed(args.rand_seed)
     torch.manual_seed(args.rand_seed)
@@ -84,7 +134,7 @@ def main():
     if torch.cuda.is_available():
         model = model.cuda()
         #cudnn.benchmark = True
-
+    
     # optionally resume from a checkpoint
     if os.path.exists(os.path.join(CKPT_DIR, ckpt_name)):
         checkpoint = torch.load(os.path.join(CKPT_DIR, ckpt_name))
@@ -128,12 +178,19 @@ def main():
     if torch.cuda.is_available():
         criterion = criterion.cuda()
 
+    valid_loss, valid_acc = validate(valid_loader, model, criterion)
+    print("Before training", valid_acc)
+    input()
+
     n_epoch_wo_improvement = 0
     for epoch in range(start_epoch, args.max_epoch):
         # train for one epoch
         train_loss, train_acc = train(train_loader, model, criterion, optimizer)
         # evaluate on validation set
+        #valid_loss, valid_acc = validate(valid_loader, model, criterion)
         valid_loss, valid_acc = validate(valid_loader, model, criterion)
+        print("epoch", epoch, valid_acc)
+        input()
         train_loss_list.append(train_loss)
         train_acc_list.append(train_acc)
         valid_loss_list.append(valid_loss)
@@ -183,8 +240,8 @@ def main():
                 'optim_state_dict': optimizer.state_dict()
             }
             save_checkpoint(state, args.save_dir, "{}epoch_".format(epoch)+ckpt_name)
-        if n_epoch_wo_improvement > EARLY_STOPPING_CRITERION :
-            break
+        #if n_epoch_wo_improvement > EARLY_STOPPING_CRITERION :
+        #    break
     _, test_acc = validate(test_loader, model)
     state = {
         "model": args.model,
@@ -208,9 +265,11 @@ def train(train_loader, model, criterion, optimizer):
     loss_part = []
     acc_part = []
     for X, y in train_loader:
-        with torch.no_grad():
-            input_ = wrn.forward_conv(X.to(device)).detach()
-            target = y.to(device)
+        input_ = X.to(device)
+        target = y.to(device)
+        #with torch.no_grad():
+        #    input_ = wrn.forward_conv(X.to(device)).detach()
+        #    target = y.to(device)
 
         # compute output
         output = model(input_)
@@ -236,8 +295,10 @@ def validate(val_loader, model, criterion=None):
     acc_part = []
     with torch.no_grad():
         for X, y in train_loader:
-            input_ = wrn.forward_conv(X.to(device)).detach()
+            input_ = X.to(device)
             target = y.to(device)
+            #input_ = wrn.forward_conv(X.to(device)).detach()
+            #target = y.to(device)
             # compute output
             output = model(input_)
             preds = output.max(dim=1)[1]
@@ -247,6 +308,9 @@ def validate(val_loader, model, criterion=None):
                 loss_part.append(loss)
             else:
                 loss_part.append(0)
+            print(preds)
+            print(target)
+            print(preds == target)
             acc = (preds == target).sum().item() / preds.size(0)
             acc_part.append(acc)
     return np.mean(loss_part), np.mean(acc_part)
