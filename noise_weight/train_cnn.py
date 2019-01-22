@@ -281,10 +281,12 @@ def main():
             noise_param_list.append(param)
             noise_name_list.append(name)
     #
-    if args.policy == "NoisyWideResNet" and args.optim == 'sgd':
+    if args.policy.startswith("NoisyWideResNet") and args.optim == 'sgd':
         optimizer = torch.optim.SGD(param_list, lr=learning_rate(0.1, 0),
                 momentum=0.9, weight_decay=5e-4)
     else:
+        if args.policy.startswith("NoisyWideResNet"):
+            optimizer = torch.optim.Adam(param_list, 0.1)
         optimizer = torch.optim.Adam(param_list, args.lr)
     if torch.cuda.is_available():
         model = model.cuda()
@@ -354,8 +356,13 @@ def main():
 
     n_epoch_wo_improvement = 0
     if args.policy.startswith("NoisyWideResNet"):
-        scheduler = lr_scheduler.MultiStepLR(optimizer, [60, 120, 160],
+        if args.noise_fc_layer == 0:
+            scheduler = lr_scheduler.MultiStepLR(optimizer, [60, 120, 160],
                 gamma=0.2)
+        else:
+            scheduler = lr_scheduler.MultiStepLR(optimizer, [100, 150, 175],
+                gamma=0.2)
+
     else:
         scheduler = None
     for epoch in range(start_epoch, args.max_epoch):
