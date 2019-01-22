@@ -124,6 +124,17 @@ class WideResNet(nn.Module):
         out = self.fcs(out)
 
         return out
+
+    def foward_conv(self, x):
+        out = self.conv1(x)
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = F.relu(self.bn1(out))
+        out = F.avg_pool2d(out, 8)
+        out = out.view(out.size(0), -1)
+        return out
+
 # https://github.com/meliketoy/wide-resnet.pytorch/blob/master/networks/wide_resnet.py
 if __name__ == '__main__':
     net=WideResNet(28, 10, 0.3, 10)
